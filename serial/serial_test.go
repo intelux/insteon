@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"testing"
+	"time"
 )
 
 func hasSocat() bool {
@@ -46,6 +47,7 @@ func runEchoSerialPort(device string) (chan struct{}, error) {
 
 	// Wait for the device to exist.
 	for _, err = os.Stat(device); os.IsNotExist(err); _, err = os.Stat(device) {
+		time.Sleep(time.Millisecond)
 	}
 
 	return stop, nil
