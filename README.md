@@ -1,2 +1,3 @@
-# serial
-Serial port management in Go.
+# Insteon
+
+A Go library to interact with Insteon PowerLine Modems (PLM).
