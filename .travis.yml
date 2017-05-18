@@ -16,6 +16,9 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install socat; fi
 
+install:
+  - go get -u github.com/golang/lint/golint
+
 script:
   make
 
