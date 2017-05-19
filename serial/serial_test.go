@@ -93,3 +93,23 @@ func TestOpen(t *testing.T) {
 		t.Errorf("expected received data to be %s, but was %s", sent, received)
 	}
 }
+
+func TestOpenFailure(t *testing.T) {
+	device := "nonexistingdevice"
+
+	_, err := Open(device)
+
+	if err == nil {
+		t.Fatal("expected an error but didn't get one")
+	}
+}
+
+func TestOpenInvalidDeviceType(t *testing.T) {
+	device := "fixtures/device"
+
+	_, err := Open(device)
+
+	if err == nil {
+		t.Fatal("expected an error but didn't get one")
+	}
+}
