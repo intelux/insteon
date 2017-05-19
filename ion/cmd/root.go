@@ -20,14 +20,16 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/intelux/insteon/plm"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 var (
-	cfgFile string
-	device  string
+	cfgFile        string
+	device         string
+	powerLineModem *plm.PowerLineModem
 )
 
 // RootCmd represents the base command when called without any subcommands
@@ -42,7 +44,15 @@ of the "ion init" command.
 
 Type "ion -h" to discover all the other available commands.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		return nil
+		var err error
+		powerLineModem, err = plm.New(device)
+
+		return err
+	},
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		if powerLineModem != nil {
+			powerLineModem.Close()
+		}
 	},
 }
 

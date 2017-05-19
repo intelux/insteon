@@ -1,10 +1,9 @@
-modules := serial
+modules := serial plm
 
 all: build lint test
 
 build:
 	@echo "### Building\n"
-	go build ./serial
 	go build -o bin/ion ./ion
 	@echo
 
