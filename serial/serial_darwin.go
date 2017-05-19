@@ -18,7 +18,7 @@ type termios struct {
 	ospeed uint64
 }
 
-const ioctlTIOCSETA = 2152231956
+const ioctlTIOCSETA = 0x80487414
 
 var plmTermios = termios{
 	// 8 bits, no parity, 1 stop bit. Also ignore modem status line.
