@@ -16,7 +16,7 @@ lint:
 test:
 	@echo "### Testing\n"
 	@for module in $(modules); do \
-		go test --coverprofile $$module.coverage ./$$module --trace=trace; \
+		go test --coverprofile $$module.coverage ./$$module; \
 	done
 	@echo
 	@echo "### Coverage\n"
