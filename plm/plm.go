@@ -47,3 +47,8 @@ func New(device string) (*PowerLineModem, error) {
 func (m *PowerLineModem) Close() {
 	m.Device.Close()
 }
+
+// GetInfo gets information about the PowerLine Modem.
+func (m *PowerLineModem) GetInfo() (Info, error) {
+	return Info{}, nil
+}

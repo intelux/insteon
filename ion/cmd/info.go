@@ -25,7 +25,13 @@ var infoCmd = &cobra.Command{
 	Short: "Show information about the PLM",
 	Long:  `Displays information about the PowerLine Modem device.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("info called")
+		info, err := powerLineModem.GetInfo()
+
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(info)
 
 		return nil
 	},
@@ -33,14 +39,4 @@ var infoCmd = &cobra.Command{
 
 func init() {
 	RootCmd.AddCommand(infoCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// infoCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// infoCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
