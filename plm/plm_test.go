@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -95,6 +96,10 @@ func runEchoSerialPort(device string) (chan struct{}, error) {
 }
 
 func TestNewLocalDevice(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Not implemented yet on Windows")
+	}
+
 	device := "mydevice"
 	stop, err := runEchoSerialPort(device)
 
