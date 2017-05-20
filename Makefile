@@ -1,10 +1,16 @@
 modules := serial plm
 
+ifeq ($(OS),Windows_NT)
+EXT:=.exe
+else
+EXT:=
+endif
+
 all: build lint test
 
 build:
 	@echo "### Building\n"
-	go build -o bin/ion ./ion
+	go build -o bin/ion${EXT} ./ion
 	@echo
 
 lint:
