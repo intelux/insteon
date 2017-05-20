@@ -28,7 +28,6 @@ import (
 
 var (
 	cfgFile        string
-	device         string
 	powerLineModem *plm.PowerLineModem
 )
 
@@ -69,11 +68,14 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.ion.yaml)")
-	RootCmd.PersistentFlags().StringVarP(&device, "device", "d", "/dev/ttyUSB0", "The device to use that is connected to the PLM. Can be either a serial port or a TCP URL")
+	RootCmd.PersistentFlags().String("device", "/dev/ttyUSB0", "The device to use that is connected to the PLM. Can be either a serial port or a TCP URL")
+	RootCmd.PersistentFlags().BoolP("debug", "d", false, "Enable debug output. For instance, this displays the RAW bytes as sent and received to/from the PLM.")
 
 	viper.SetEnvPrefix("ion")
 	viper.BindEnv("device")
 	viper.BindPFlag("device", RootCmd.PersistentFlags().Lookup("device"))
+	viper.BindEnv("debug")
+	viper.BindPFlag("debug", RootCmd.PersistentFlags().Lookup("debug"))
 }
 
 // initConfig reads in config file and ENV variables if set.
