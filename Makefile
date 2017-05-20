@@ -9,8 +9,10 @@ build:
 
 lint:
 	@echo "### Linting\n"
-	golint ./...
-	go vet ./...
+	@for module in $(modules); do \
+		golint ./$$module; \
+		go vet ./$$module; \
+	done
 	@echo
 
 test:
