@@ -14,7 +14,9 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -25,13 +27,16 @@ var infoCmd = &cobra.Command{
 	Short: "Show information about the PLM",
 	Long:  `Displays information about the PowerLine Modem device.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		info, err := powerLineModem.GetInfo()
+		ctx := context.Background()
+		ctx, _ = context.WithTimeout(ctx, time.Second)
+		info, err := powerLineModem.GetInfo(ctx)
 
 		if err != nil {
 			return err
 		}
 
 		fmt.Println(info)
+		time.Sleep(10 * time.Second)
 
 		return nil
 	},

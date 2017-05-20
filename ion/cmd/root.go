@@ -43,10 +43,21 @@ of the "ion init" command.
 
 Type "ion -h" to discover all the other available commands.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		var err error
-		powerLineModem, err = plm.New(viper.GetString("device"))
+		device, err := plm.ParseDevice(viper.GetString("device"))
 
-		return err
+		if err != nil {
+			return err
+		}
+
+		powerLineModem = plm.New(device)
+
+		if viper.GetBool("debug") {
+			powerLineModem.SetDebugStream(os.Stderr)
+		}
+
+		powerLineModem.Start()
+
+		return nil
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
 		if powerLineModem != nil {

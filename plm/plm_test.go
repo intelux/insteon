@@ -11,31 +11,31 @@ import (
 	"time"
 )
 
-func TestNewDialError(t *testing.T) {
-	_, err := New("tcp://0.0.0.0:0")
+func TestParseDeviceDialError(t *testing.T) {
+	_, err := ParseDevice("tcp://0.0.0.0:0")
 
 	if err == nil {
 		t.Error("expected a failure")
 	}
 }
 
-func TestNewOpenError(t *testing.T) {
-	_, err := New("nonexistingdevice")
+func TestParseDeviceOpenError(t *testing.T) {
+	_, err := ParseDevice("nonexistingdevice")
 
 	if err == nil {
 		t.Error("expected a failure")
 	}
 }
 
-func TestNewUnsupportedScheme(t *testing.T) {
-	_, err := New("foo://bar")
+func TestParseDeviceUnsupportedScheme(t *testing.T) {
+	_, err := ParseDevice("foo://bar")
 
 	if err == nil {
 		t.Error("expected a failure")
 	}
 }
 
-func TestNewDialSuccess(t *testing.T) {
+func TestParseDeviceDialSuccess(t *testing.T) {
 	srv, err := net.Listen("tcp", "127.0.0.1:0")
 
 	if err != nil {
@@ -44,17 +44,17 @@ func TestNewDialSuccess(t *testing.T) {
 
 	defer srv.Close()
 
-	plm, err := New("tcp://" + srv.Addr().String())
+	device, err := ParseDevice("tcp://" + srv.Addr().String())
 
 	if err != nil {
 		t.Fatalf("failed to create device: %s", err)
 	}
 
-	if plm == nil {
-		t.Fatalf("plm is not supposed to be nil")
+	if device == nil {
+		t.Fatalf("device is not supposed to be nil")
 	}
 
-	defer plm.Close()
+	defer device.Close()
 }
 
 func runEchoSerialPort(device string) (chan struct{}, error) {
@@ -95,13 +95,13 @@ func runEchoSerialPort(device string) (chan struct{}, error) {
 	return stop, nil
 }
 
-func TestNewLocalDevice(t *testing.T) {
+func TestParseDeviceLocalDevice(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Not implemented yet on Windows")
 	}
 
-	device := "mydevice"
-	stop, err := runEchoSerialPort(device)
+	name := "mydevice"
+	stop, err := runEchoSerialPort(name)
 
 	if err != nil {
 		t.Fatalf("failed to create serial port: %s", err)
@@ -109,15 +109,15 @@ func TestNewLocalDevice(t *testing.T) {
 
 	defer close(stop)
 
-	plm, err := New(device)
+	device, err := ParseDevice(name)
 
 	if err != nil {
 		t.Fatalf("failed to create device: %s", err)
 	}
 
-	if plm == nil {
-		t.Fatalf("plm is not supposed to be nil")
+	if device == nil {
+		t.Fatalf("device is not supposed to be nil")
 	}
 
-	defer plm.Close()
+	defer device.Close()
 }

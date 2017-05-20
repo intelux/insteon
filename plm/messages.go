@@ -2,8 +2,15 @@ package plm
 
 import "io"
 
+// Request is the interface for all requests.
+type Request interface{}
+
 // Response is the interface for all responses.
-type Response interface{}
+type Response interface {
+}
+
+// ResponseFailure indicates that a previous message failed.
+type ResponseFailure struct{}
 
 // ParseResponse parses a response from a reader.
 func ParseResponse(r io.Reader) (Response, error) {
@@ -13,9 +20,8 @@ func ParseResponse(r io.Reader) (Response, error) {
 		return nil, err
 	}
 
-	if mark == MessageFailure {
-		// TODO: Return failure message
-		return nil, nil
+	if mark == MessageNak {
+		return ResponseFailure{}, nil
 	}
 
 	buffer := make([]byte, 16)
@@ -25,20 +31,24 @@ func ParseResponse(r io.Reader) (Response, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	buffer = buffer[:n]
+
+	return nil, err
 }
 
 // skipToMessage skips bytes on the specified io.Reader until a message start
-// or message failure is met.
+// is met.
 //
-// The message start or message failure is returned.
-func skipToMessageStart(r io.Reader) (byte, error) {
+// The message start or message nak is returned.
+func skipToMessage(r io.Reader) (byte, error) {
 	buffer := make([]byte, 1)
 
-	for buffer[0] != Message && buffer[0] != MessageFailure {
+	for buffer[0] != MessageStart && buffer[0] != MessageNak {
 		_, err := r.Read(buffer)
 
 		if err != nil {
-			return nil, err
+			return 0, err
 		}
 	}
 
