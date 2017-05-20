@@ -45,7 +45,7 @@ of the "ion init" command.
 Type "ion -h" to discover all the other available commands.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		var err error
-		powerLineModem, err = plm.New(device)
+		powerLineModem, err = plm.New(viper.GetString("device"))
 
 		return err
 	},
@@ -71,7 +71,9 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.ion.yaml)")
 	RootCmd.PersistentFlags().StringVarP(&device, "device", "d", "/dev/ttyUSB0", "The device to use that is connected to the PLM. Can be either a serial port or a TCP URL")
 
-	viper.BindPFlag("device", RootCmd.Flags().Lookup("device"))
+	viper.SetEnvPrefix("ion")
+	viper.BindEnv("device")
+	viper.BindPFlag("device", RootCmd.PersistentFlags().Lookup("device"))
 }
 
 // initConfig reads in config file and ENV variables if set.
