@@ -28,13 +28,11 @@ func (t *requestToken) Close() error {
 // PowerLineModem represents an Insteon PowerLine Modem device, which can be
 // connected locally or via a TCP socket.
 type PowerLineModem struct {
-	reader         io.Reader
-	writer         io.Writer
-	closer         io.Closer
-	dispatchReader *io.PipeReader
-	dispatchWriter *io.PipeWriter
-	stop           chan struct{}
-	tokens         chan *requestToken
+	reader io.Reader
+	writer io.Writer
+	closer io.Closer
+	stop   chan struct{}
+	tokens chan *requestToken
 }
 
 // ParseDevice parses a device specifiction string, either as a local file (to
@@ -66,14 +64,10 @@ func ParseDevice(device string) (io.ReadWriteCloser, error) {
 
 // New create a new PowerLineModem device.
 func New(device io.ReadWriteCloser) *PowerLineModem {
-	r, w := io.Pipe()
-
 	return &PowerLineModem{
-		reader:         io.TeeReader(device, w),
-		writer:         device,
-		closer:         device,
-		dispatchReader: r,
-		dispatchWriter: w,
+		reader: device,
+		writer: device,
+		closer: device,
 	}
 }
 
@@ -99,11 +93,28 @@ func (m *PowerLineModem) SetDebugStream(w io.Writer) {
 //
 // Attempting to start an already running intance has undefined behavior.
 func (m *PowerLineModem) Start() {
+	// Create a pipe that can be connected/disconnected.
+	//
+	// Whenever a token becomes active, it will connect the pipe and receive
+	// reads. Whenever a token closes, it will disconnect the pipe.
+	pipeReader, pipeWriter := io.Pipe()
+	r, w := ConnectPipe(pipeReader, pipeWriter)
+
+	// Copy all reads to the connected pipe.
+	reader := io.TeeReader(m.reader, w)
+
 	m.stop = make(chan struct{})
-	go readLoop(m.stop, m.reader)
+	go readLoop(m.stop, reader)
 
 	m.tokens = make(chan *requestToken)
-	go dispatchLoop(m.tokens, m.dispatchReader)
+	go dispatchLoop(m.tokens, r)
+
+	// Close the pipe on stop.
+	go func() {
+		<-m.stop
+		pipeReader.Close()
+		pipeWriter.Close()
+	}()
 }
 
 // Stop the PowerLine Modem.
@@ -120,8 +131,6 @@ func (m *PowerLineModem) Stop() {
 // Close the PowerLine Modem.
 func (m *PowerLineModem) Close() {
 	m.Stop()
-	m.dispatchReader.Close()
-	m.dispatchWriter.Close()
 	m.closer.Close()
 }
 
@@ -137,17 +146,16 @@ func readLoop(stop <-chan struct{}, r io.Reader) {
 			if err != nil {
 				return
 			}
-
-			// TODO: Handle the monitor events.
-			//fmt.Println(msg[:n])
 		}
 	}
 }
 
-func dispatchLoop(tokens <-chan *requestToken, r io.Reader) {
+func dispatchLoop(tokens <-chan *requestToken, r ConnectReader) {
 	for token := range tokens {
+		r.Connect()
 		close(token.ready)
 		_, err := io.Copy(token.pipeWriter, r)
+		r.Disconnect()
 
 		if err != nil {
 			return
@@ -180,6 +188,7 @@ func (m *PowerLineModem) Acquire(ctx context.Context) (io.ReadWriteCloser, error
 	case <-token.ready:
 		return token, nil
 	case <-ctx.Done():
+		token.Close()
 		return nil, ctx.Err()
 	}
 }
