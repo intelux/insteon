@@ -96,24 +96,22 @@ func (m *PowerLineModem) Start() {
 	// Create a pipe that can be connected/disconnected.
 	//
 	// Whenever a token becomes active, it will connect the pipe and receive
-	// reads. Whenever a token closes, it will disconnect the pipe.
-	pipeReader, pipeWriter := io.Pipe()
-	r, w := ConnectPipe(pipeReader, pipeWriter)
+	// reads. Whenever a token closes, it will disconnect the pipe implicitely.
+	pipe := &ConnectedPipe{}
 
 	// Copy all reads to the connected pipe.
-	reader := io.TeeReader(m.reader, w)
+	reader := io.TeeReader(m.reader, pipe)
 
 	m.stop = make(chan struct{})
 	go readLoop(m.stop, reader)
 
 	m.tokens = make(chan *requestToken)
-	go dispatchLoop(m.tokens, r)
+	go dispatchLoop(m.tokens, pipe)
 
 	// Close the pipe on stop.
 	go func() {
 		<-m.stop
-		pipeReader.Close()
-		pipeWriter.Close()
+		pipe.Close()
 	}()
 }
 
@@ -144,21 +142,21 @@ func readLoop(stop <-chan struct{}, r io.Reader) {
 			_, err := r.Read(msg)
 
 			if err != nil {
-				return
+				panic(err)
 			}
 		}
 	}
 }
 
-func dispatchLoop(tokens <-chan *requestToken, r ConnectReader) {
+func dispatchLoop(tokens <-chan *requestToken, c Connecter) {
 	for token := range tokens {
-		r.Connect()
 		close(token.ready)
-		_, err := io.Copy(token.pipeWriter, r)
-		r.Disconnect()
+		err := c.Connect(token.pipeWriter)
 
-		if err != nil {
-			return
+		// An io.ErrClosedPipe means either the Connecter or the underlying
+		// Writer was closed, which are both expected.
+		if err != io.ErrClosedPipe {
+			panic(err)
 		}
 	}
 }

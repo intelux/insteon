@@ -5,69 +5,74 @@ import (
 	"sync"
 )
 
-// ConnectReader represents a reader that can be connected.
-type ConnectReader interface {
-	io.Reader
-	Connecter
-}
-
-// Connecter represents an object that can be connected.
+// Connecter represents a type that can connect to a writer.
 type Connecter interface {
-	Connect()
-	Disconnect()
+	Connect(io.Writer) error
 }
 
-type connectWriter struct {
-	io.Writer
-	connected      bool
-	connectedMutex sync.Mutex
+// ConnectedPipe is a pipe that can be dynamically connected.
+type ConnectedPipe struct {
+	mutex  sync.Mutex
+	reader *io.PipeReader
+	writer *io.PipeWriter
 }
 
-func (w *connectWriter) Write(b []byte) (int, error) {
-	w.connectedMutex.Lock()
-	c := w.connected
-	w.connectedMutex.Unlock()
+// Write to the connected pipe.
+//
+// If the pipe isn't connected at the moment of the write, the write is faked
+// and will not block.
+func (p *ConnectedPipe) Write(b []byte) (int, error) {
+	p.mutex.Lock()
+	w := p.writer
+	p.mutex.Unlock()
 
-	if c {
-		return w.Writer.Write(b)
+	if w != nil {
+		n, err := w.Write(b)
+
+		if err != io.ErrClosedPipe {
+			return n, err
+		}
 	}
 
+	// The pipe is not connected, pretend to write suceeded.
 	return len(b), nil
 }
 
-func (w *connectWriter) connect() {
-	w.connectedMutex.Lock()
-	w.connected = true
-	w.connectedMutex.Unlock()
+// Connect to a writer until either the pipe or the writer is closed.
+//
+// Connect returns the error that caused the copy to fail.
+func (p *ConnectedPipe) Connect(w io.Writer) error {
+	p.mutex.Lock()
+	p.reader, p.writer = io.Pipe()
+	r := p.reader
+	p.mutex.Unlock()
+
+	_, err := io.Copy(w, r)
+
+	p.Close()
+
+	return err
 }
 
-func (w *connectWriter) disconnect() {
-	w.connectedMutex.Lock()
-	w.connected = false
-	w.connectedMutex.Unlock()
-}
+// Close the connected pipe.
+//
+// Any pending write or connect is interrupted.
+//
+// Close may be called as many times as needed. Closing an unconnected pipe has
+// no effect.
+func (p *ConnectedPipe) Close() (err error) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 
-type connectReader struct {
-	io.Reader
-	writer *connectWriter
-}
-
-func (r connectReader) Connect() {
-	r.writer.connect()
-}
-
-func (r connectReader) Disconnect() {
-	r.writer.disconnect()
-}
-
-// ConnectPipe connects two ends of an io.Pipe.
-func ConnectPipe(r io.Reader, w io.Writer) (ConnectReader, io.Writer) {
-	cw := &connectWriter{
-		Writer: w,
+	if p.reader != nil {
+		p.reader.Close()
+		p.reader = nil
 	}
 
-	return connectReader{
-		Reader: r,
-		writer: cw,
-	}, cw
+	if p.writer != nil {
+		p.writer.Close()
+		p.writer = nil
+	}
+
+	return err
 }
