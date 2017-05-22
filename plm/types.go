@@ -1,12 +1,34 @@
 package plm
 
-import "encoding/hex"
+import (
+	"encoding/hex"
+	"fmt"
+)
 
 // Identity is an Insteon identity.
 type Identity [3]byte
 
 func (i Identity) String() string {
 	return hex.EncodeToString(i[:])
+}
+
+// ParseIdentity parses an identity.
+func ParseIdentity(s string) (Identity, error) {
+	var identity Identity
+
+	b, err := hex.DecodeString(s)
+
+	if err != nil {
+		return identity, err
+	}
+
+	if len(b) != 3 {
+		return identity, fmt.Errorf("invalid identity (%s)", s)
+	}
+
+	copy(identity[:], b)
+
+	return identity, nil
 }
 
 // MainCategory represents a main category.

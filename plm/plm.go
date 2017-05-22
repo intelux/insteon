@@ -215,3 +215,29 @@ func (m *PowerLineModem) GetInfo(ctx context.Context) (IMInfo, error) {
 
 	return response.IMInfo, nil
 }
+
+// On turns a device on.
+func (m *PowerLineModem) On(ctx context.Context, identity Identity) error {
+	token, err := m.Acquire(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	defer token.Close()
+
+	// TODO: Implement the standard/extended message logic and replace the types below.
+	err = MarshalRequest(token, GetIMInfoRequest{})
+
+	if err != nil {
+		return err
+	}
+
+	var response GetIMInfoResponse
+
+	if err := UnmarshalResponse(token, &response); err != nil {
+		return err
+	}
+
+	return nil
+}
