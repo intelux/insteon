@@ -12,13 +12,10 @@ const (
 // These types represents a command codes, as defined in the Insteon Modem
 // Developer's Guide (page 12).
 
-// RequestCode is a message sent from the host to the modem.
-type RequestCode byte
-
-// ResponseCode is a message sent from the modem to the host.
-type ResponseCode byte
+// CommandCode represents a command code sent between the PLM and the host.
+type CommandCode byte
 
 const (
 	// GetIMInfo asks the modem for its information.
-	GetIMInfo RequestCode = 0x60
+	GetIMInfo CommandCode = 0x60
 )

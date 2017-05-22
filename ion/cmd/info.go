@@ -35,8 +35,9 @@ var infoCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Println(info)
-		time.Sleep(10 * time.Second)
+		fmt.Printf("Category: %s\n", info.Category)
+		fmt.Printf("Identity: %s\n", info.Identity)
+		fmt.Printf("Firmware version: %d\n", info.FirmwareVersion)
 
 		return nil
 	},

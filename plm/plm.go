@@ -192,27 +192,26 @@ func (m *PowerLineModem) Acquire(ctx context.Context) (io.ReadWriteCloser, error
 }
 
 // GetInfo gets information about the PowerLine Modem.
-func (m *PowerLineModem) GetInfo(ctx context.Context) (Info, error) {
+func (m *PowerLineModem) GetInfo(ctx context.Context) (IMInfo, error) {
 	token, err := m.Acquire(ctx)
 
 	if err != nil {
-		return Info{}, err
+		return IMInfo{}, err
 	}
 
 	defer token.Close()
 
-	_, err = token.Write([]byte{MessageStart, byte(GetIMInfo)})
+	err = MarshalRequest(token, GetIMInfoRequest{})
 
 	if err != nil {
-		return Info{}, err
+		return IMInfo{}, err
 	}
 
-	buf := make([]byte, 20)
-	_, err = token.Read(buf)
+	var response GetIMInfoResponse
 
-	if err != nil {
-		return Info{}, err
+	if err := UnmarshalResponse(token, &response); err != nil {
+		return IMInfo{}, err
 	}
 
-	return Info{}, nil
+	return response.IMInfo, nil
 }
