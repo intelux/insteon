@@ -62,7 +62,7 @@ func TestOpen(t *testing.T) {
 	stop, err := runEchoSerialPort(device)
 
 	if err != nil {
-		t.Fatalf("failed to create the echo serial port: %s", err)
+		t.Skipf("failed to create the echo serial port: %s", err)
 	}
 
 	defer close(stop)
