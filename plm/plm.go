@@ -226,14 +226,19 @@ func (m *PowerLineModem) On(ctx context.Context, identity Identity) error {
 
 	defer token.Close()
 
-	// TODO: Implement the standard/extended message logic and replace the types below.
-	err = MarshalRequest(token, GetIMInfoRequest{})
+	err = MarshalRequest(token, SendStandardOrExtendedMessageRequest{
+		Target:       identity,
+		HopsLeft:     2,
+		MaxHops:      3,
+		Flags:        0,
+		CommandBytes: [2]byte{0x11, 0xff},
+	})
 
 	if err != nil {
 		return err
 	}
 
-	var response GetIMInfoResponse
+	var response SendStandardOrExtendedMessageResponse
 
 	if err := UnmarshalResponse(token, &response); err != nil {
 		return err

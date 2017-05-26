@@ -1,6 +1,7 @@
 package plm
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -39,7 +40,12 @@ func (e errUnknownCommand) Error() string {
 
 // MarshalRequest serializes a request to a writer.
 func MarshalRequest(w io.Writer, request Request) error {
-	_, err := w.Write([]byte{
+	// Make sure we send it all at once. Not that it is mandatory, but it's
+	// easier to debug.
+	bw := bufio.NewWriter(w)
+	defer bw.Flush()
+
+	_, err := bw.Write([]byte{
 		byte(MessageStart),
 		byte(request.commandCode()),
 	})
@@ -48,7 +54,7 @@ func MarshalRequest(w io.Writer, request Request) error {
 		return err
 	}
 
-	return request.write(w)
+	return request.write(bw)
 }
 
 // UnmarshalResponse parses a response from a reader.
@@ -112,41 +118,6 @@ func skipToMessage(r io.Reader) (byte, error) {
 }
 
 var responsesSizes = map[CommandCode]int{
-	GetIMInfo: 7,
-}
-
-// GetIMInfoRequest is sent when information about is PLM is requested.
-type GetIMInfoRequest struct{}
-
-func (GetIMInfoRequest) commandCode() CommandCode { return GetIMInfo }
-
-func (GetIMInfoRequest) write(io.Writer) error { return nil }
-
-// GetIMInfoResponse is returned when information about is PLM is requested.
-type GetIMInfoResponse struct {
-	IMInfo IMInfo
-}
-
-func (*GetIMInfoResponse) commandCode() CommandCode { return GetIMInfo }
-func (res *GetIMInfoResponse) unmarshal(r io.Reader) error {
-	buffer := make([]byte, 7)
-
-	_, err := io.ReadFull(r, buffer)
-
-	if err != nil {
-		return err
-	}
-
-	if buffer[len(buffer)-1] != MessageAck {
-		return ErrCommandFailure
-	}
-
-	copy(res.IMInfo.Identity[:], buffer[:3])
-	res.IMInfo.Category = Category{
-		mainCategory: MainCategory(buffer[3]),
-		subCategory:  SubCategory(buffer[4]),
-	}
-	res.IMInfo.FirmwareVersion = buffer[5]
-
-	return nil
+	GetIMInfo:                     7,
+	SendStandardOrExtendedMessage: 7,
 }

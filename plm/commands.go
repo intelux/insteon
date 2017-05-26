@@ -18,4 +18,6 @@ type CommandCode byte
 const (
 	// GetIMInfo asks the modem for its information.
 	GetIMInfo CommandCode = 0x60
+	// SendStandardOrExtendedMessage send a message to the PLM.
+	SendStandardOrExtendedMessage = 0x62
 )
