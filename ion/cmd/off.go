@@ -24,7 +24,6 @@ import (
 
 var (
 	offInstant bool
-	offLevel   float64
 )
 
 // offCmd represents the off command
@@ -52,7 +51,7 @@ var offCmd = &cobra.Command{
 		state := plm.LightState{
 			OnOff:   plm.LightOff,
 			Instant: offInstant,
-			Level:   offLevel,
+			Level:   0,
 		}
 		err = powerLineModem.SetLightState(ctx, identity, state)
 
@@ -66,6 +65,5 @@ var offCmd = &cobra.Command{
 
 func init() {
 	offCmd.Flags().BoolVarP(&offInstant, "instant", "i", false, "Change the light state instantly.")
-	offCmd.Flags().Float64VarP(&offLevel, "level", "l", 0.0, "The light level, as a decimal value.")
 	RootCmd.AddCommand(offCmd)
 }

@@ -65,7 +65,7 @@ var onCmd = &cobra.Command{
 }
 
 func init() {
-	onCmd.Flags().BoolVarP(&onInstant, "instant", "i", false, "Change the light state instantly.")
-	onCmd.Flags().Float64VarP(&onLevel, "level", "l", 1.0, "The light level, as a decimal value.")
+	onCmd.Flags().BoolVarP(&onInstant, "instant", "i", false, "Change the light state instantly and at full value (level is ignored).")
+	onCmd.Flags().Float64VarP(&onLevel, "level", "l", 1.0, "The light level, as a decimal value in the [0, 1] range.")
 	RootCmd.AddCommand(onCmd)
 }

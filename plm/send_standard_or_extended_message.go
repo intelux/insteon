@@ -69,8 +69,14 @@ func (*SendStandardOrExtendedMessageResponse) commandCode() CommandCode {
 }
 
 func (res *SendStandardOrExtendedMessageResponse) unmarshal(r io.Reader) error {
+	_, err := io.ReadFull(r, res.Sender[:])
+
+	if err != nil {
+		return err
+	}
+
 	data := make([]byte, 1)
-	_, err := io.ReadFull(r, data)
+	_, err = io.ReadFull(r, data)
 
 	if err != nil {
 		return err
@@ -80,12 +86,6 @@ func (res *SendStandardOrExtendedMessageResponse) unmarshal(r io.Reader) error {
 	res.MaxHops = int(flagsByte) & 0x03
 	res.HopsLeft = (int(flagsByte) & 0x0c) >> 2
 	res.Flags = MessageFlags(flagsByte & 0xf0)
-
-	_, err = io.ReadFull(r, res.Sender[:])
-
-	if err != nil {
-		return err
-	}
 
 	_, err = io.ReadFull(r, res.CommandBytes[:])
 
