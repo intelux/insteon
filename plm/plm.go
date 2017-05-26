@@ -193,15 +193,15 @@ func (m *PowerLineModem) Acquire(ctx context.Context) (io.ReadWriteCloser, error
 
 // GetInfo gets information about the PowerLine Modem.
 func (m *PowerLineModem) GetInfo(ctx context.Context) (IMInfo, error) {
-	token, err := m.Acquire(ctx)
+	device, err := m.Acquire(ctx)
 
 	if err != nil {
 		return IMInfo{}, err
 	}
 
-	defer token.Close()
+	defer device.Close()
 
-	err = MarshalRequest(token, GetIMInfoRequest{})
+	err = MarshalRequest(device, GetIMInfoRequest{})
 
 	if err != nil {
 		return IMInfo{}, err
@@ -209,29 +209,29 @@ func (m *PowerLineModem) GetInfo(ctx context.Context) (IMInfo, error) {
 
 	var response GetIMInfoResponse
 
-	if err := UnmarshalResponse(token, &response); err != nil {
+	if err := UnmarshalResponse(device, &response); err != nil {
 		return IMInfo{}, err
 	}
 
 	return response.IMInfo, nil
 }
 
-// On turns a device on.
-func (m *PowerLineModem) On(ctx context.Context, identity Identity) error {
-	token, err := m.Acquire(ctx)
+// SetLightState sets the state of a lighting device.
+func (m *PowerLineModem) SetLightState(ctx context.Context, identity Identity, state LightState) error {
+	device, err := m.Acquire(ctx)
 
 	if err != nil {
 		return err
 	}
 
-	defer token.Close()
+	defer device.Close()
 
-	err = MarshalRequest(token, SendStandardOrExtendedMessageRequest{
+	err = MarshalRequest(device, SendStandardOrExtendedMessageRequest{
 		Target:       identity,
 		HopsLeft:     2,
 		MaxHops:      3,
 		Flags:        0,
-		CommandBytes: [2]byte{0x11, 0xff},
+		CommandBytes: state.commandBytes(),
 	})
 
 	if err != nil {
@@ -240,7 +240,7 @@ func (m *PowerLineModem) On(ctx context.Context, identity Identity) error {
 
 	var response SendStandardOrExtendedMessageResponse
 
-	if err := UnmarshalResponse(token, &response); err != nil {
+	if err := UnmarshalResponse(device, &response); err != nil {
 		return err
 	}
 

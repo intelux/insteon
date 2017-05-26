@@ -23,15 +23,15 @@ import (
 )
 
 var (
-	onInstant bool
-	onLevel   float64
+	offInstant bool
+	offLevel   float64
 )
 
-// onCmd represents the on command
-var onCmd = &cobra.Command{
-	Use:   "on <identity>",
-	Short: "Turn a light on",
-	Long:  `Turn a light on`,
+// offCmd represents the off command
+var offCmd = &cobra.Command{
+	Use:   "off <identity>",
+	Short: "Turn a light off",
+	Long:  `Turn a light off`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) < 1 {
 			return errors.New("missing identity parameter")
@@ -50,9 +50,9 @@ var onCmd = &cobra.Command{
 		ctx := context.Background()
 		ctx, _ = context.WithTimeout(ctx, time.Second)
 		state := plm.LightState{
-			OnOff:   plm.LightOn,
-			Instant: onInstant,
-			Level:   onLevel,
+			OnOff:   plm.LightOff,
+			Instant: offInstant,
+			Level:   offLevel,
 		}
 		err = powerLineModem.SetLightState(ctx, identity, state)
 
@@ -65,7 +65,7 @@ var onCmd = &cobra.Command{
 }
 
 func init() {
-	onCmd.Flags().BoolVarP(&onInstant, "instant", "i", false, "Change the light state instantly.")
-	onCmd.Flags().Float64VarP(&onLevel, "level", "l", 1.0, "The light level, as a decimal value.")
-	RootCmd.AddCommand(onCmd)
+	offCmd.Flags().BoolVarP(&offInstant, "instant", "i", false, "Change the light state instantly.")
+	offCmd.Flags().Float64VarP(&offLevel, "level", "l", 0.0, "The light level, as a decimal value.")
+	RootCmd.AddCommand(offCmd)
 }

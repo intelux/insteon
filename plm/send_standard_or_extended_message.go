@@ -18,13 +18,16 @@ const (
 	MessageFlagBroadcast MessageFlags = 0x80
 )
 
+// CommandBytes represent a pair of command bytes.
+type CommandBytes [2]byte
+
 // SendStandardOrExtendedMessageRequest is sent when information about is PLM is requested.
 type SendStandardOrExtendedMessageRequest struct {
 	Target       Identity
 	HopsLeft     int
 	MaxHops      int
 	Flags        MessageFlags
-	CommandBytes [2]byte
+	CommandBytes CommandBytes
 	UserData     [14]byte
 }
 
@@ -38,8 +41,8 @@ func (r SendStandardOrExtendedMessageRequest) write(w io.Writer) error {
 	)
 
 	var data []byte
-	data = append(data, flagsByte)
 	data = append(data, r.Target[:]...)
+	data = append(data, flagsByte)
 	data = append(data, r.CommandBytes[:]...)
 
 	if r.Flags&MessageFlagExtended != 0 {
@@ -57,7 +60,7 @@ type SendStandardOrExtendedMessageResponse struct {
 	HopsLeft     int
 	MaxHops      int
 	Flags        MessageFlags
-	CommandBytes [2]byte
+	CommandBytes CommandBytes
 	UserData     [14]byte
 }
 

@@ -3,6 +3,7 @@ package plm
 import (
 	"encoding/hex"
 	"fmt"
+	"math"
 )
 
 // Identity is an Insteon identity.
@@ -156,4 +157,51 @@ type IMInfo struct {
 	Identity        Identity
 	Category        Category
 	FirmwareVersion uint8
+}
+
+// LightOnOff represents a light on/off state.
+type LightOnOff bool
+
+const (
+	// LightOn indicates an on light.
+	LightOn LightOnOff = true
+	// LightOff indicates an off light.
+	LightOff LightOnOff = false
+)
+
+func (s LightOnOff) String() string {
+	if s {
+		return "on"
+	}
+
+	return "off"
+}
+
+// LightState represents a light state.
+type LightState struct {
+	OnOff   LightOnOff
+	Instant bool
+	Level   float64
+}
+
+func clampLevel(v float64) float64 {
+	return math.Max(0, math.Min(1, v))
+}
+
+func (s LightState) commandBytes() CommandBytes {
+	levelByte := byte(clampLevel(s.Level) * 255)
+
+	if s.OnOff == LightOn {
+		if s.Instant {
+			return CommandBytes([2]byte{0x12, levelByte})
+		}
+
+		return CommandBytes([2]byte{0x11, levelByte})
+	}
+
+	if s.Instant {
+		return CommandBytes([2]byte{0x14, levelByte})
+	}
+
+	return CommandBytes([2]byte{0x13, levelByte})
 }
