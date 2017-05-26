@@ -205,3 +205,6 @@ func (s LightState) commandBytes() CommandBytes {
 
 	return CommandBytes([2]byte{0x13, levelByte})
 }
+
+// CommandBytesBeep is used to make a device beep.
+var CommandBytesBeep = CommandBytes{0x30, 0x00}

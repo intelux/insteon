@@ -246,3 +246,34 @@ func (m *PowerLineModem) SetLightState(ctx context.Context, identity Identity, s
 
 	return nil
 }
+
+// Beep makes a device beep.
+func (m *PowerLineModem) Beep(ctx context.Context, identity Identity) error {
+	device, err := m.Acquire(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	defer device.Close()
+
+	err = MarshalRequest(device, SendStandardOrExtendedMessageRequest{
+		Target:       identity,
+		HopsLeft:     2,
+		MaxHops:      3,
+		Flags:        0,
+		CommandBytes: CommandBytesBeep,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	var response SendStandardOrExtendedMessageResponse
+
+	if err := UnmarshalResponse(device, &response); err != nil {
+		return err
+	}
+
+	return nil
+}
