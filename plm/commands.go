@@ -77,8 +77,8 @@ const (
 	UserResetDetected = 0x55
 	// AllLinkCleanupFailureReport is used when a failure to cleanup the all-linking process is reported.
 	AllLinkCleanupFailureReport = 0x56
-	// AllLinkRecordResponse is used when a all-linking record response is received.
-	AllLinkRecordResponse = 0x57
+	// AllLinkRecord is used when a all-linking record response is received.
+	AllLinkRecord = 0x57
 	// AllLinkCleanupStatusReport is used when a all-linking status report is received.
 	AllLinkCleanupStatusReport = 0x58
 )

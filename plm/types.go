@@ -319,7 +319,7 @@ func (s LightState) commandBytes() CommandBytes {
 }
 
 // MessageFlags represents the message flags.
-type MessageFlags int
+type MessageFlags byte
 
 const (
 	// MessageFlagExtended indicates extended messages.
@@ -332,11 +332,20 @@ const (
 	MessageFlagBroadcast MessageFlags = 0x80
 )
 
+// AllLinkRecordFlags represents an all-link record flags.
+type AllLinkRecordFlags byte
+
+// Group represents a group.
+type Group byte
+
 // CommandBytes represent a pair of command bytes.
 type CommandBytes [2]byte
 
 // UserData represent user data.
 type UserData [14]byte
+
+// LinkData represent link data.
+type LinkData [3]byte
 
 var (
 	// CommandBytesBeep is used to make a device beep.

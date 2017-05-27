@@ -125,7 +125,7 @@ var responsesSizes = map[CommandCode]int{
 	ButtonEventReport:             1,
 	UserResetDetected:             0,
 	AllLinkCleanupFailureReport:   5,
-	AllLinkRecordResponse:         8,
+	AllLinkRecord:                 8,
 	AllLinkCleanupStatusReport:    1,
 	GetIMInfo:                     7,
 	GetFirstAllLinkRecord:         1,
