@@ -290,16 +290,30 @@ func (m *PowerLineModem) Beep(ctx context.Context, identity Identity) error {
 }
 
 // GetDeviceInfo gets the device info.
-func (m *PowerLineModem) GetDeviceInfo(ctx context.Context, identity Identity) error {
+func (m *PowerLineModem) GetDeviceInfo(ctx context.Context, identity Identity) (DeviceInfo, error) {
 	device, err := m.Acquire(ctx)
 
 	if err != nil {
-		return err
+		return DeviceInfo{}, err
 	}
 
 	defer device.Close()
 
 	_, err = m.sendExtendedMessage(device, identity, CommandBytesGetDeviceInfo, UserData{})
-	// TODO: Wait for the actual info.
-	return err
+
+	// The device first sends an ack. We read it but don't really care.
+	var ack StandardMessageReceivedResponse
+
+	if err = UnmarshalResponse(device, &ack); err != nil {
+		return DeviceInfo{}, err
+	}
+
+	// The device then sends information: that we care about !
+	var response ExtendedMessageReceivedResponse
+
+	if err = UnmarshalResponse(device, &response); err != nil {
+		return DeviceInfo{}, err
+	}
+
+	return deviceInfoFromUserData(response.UserData), nil
 }

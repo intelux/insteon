@@ -4,26 +4,6 @@ import (
 	"io"
 )
 
-// MessageFlags represents the message flags.
-type MessageFlags int
-
-const (
-	// MessageFlagExtended indicates extended messages.
-	MessageFlagExtended MessageFlags = 0x10
-	// MessageFlagAck indicates an acquitement message.
-	MessageFlagAck MessageFlags = 0x20
-	// MessageFlagAllLink indicates an all-link message.
-	MessageFlagAllLink MessageFlags = 0x40
-	// MessageFlagBroadcast indicates a broadcast message.
-	MessageFlagBroadcast MessageFlags = 0x80
-)
-
-// CommandBytes represent a pair of command bytes.
-type CommandBytes [2]byte
-
-// UserData represent user data.
-type UserData [14]byte
-
 // SendStandardOrExtendedMessageRequest is sent when information about is PLM is requested.
 type SendStandardOrExtendedMessageRequest struct {
 	Target       Identity
@@ -39,16 +19,7 @@ func (SendStandardOrExtendedMessageRequest) commandCode() CommandCode {
 }
 
 func (r SendStandardOrExtendedMessageRequest) checksum() byte {
-	var checksum byte
-
-	for _, b := range r.CommandBytes {
-		checksum += b
-	}
-	for _, b := range r.UserData {
-		checksum += b
-	}
-
-	return ((0xff ^ checksum) + 1) & 0xff
+	return checksum(r.CommandBytes, r.UserData)
 }
 
 func (r SendStandardOrExtendedMessageRequest) write(w io.Writer) error {

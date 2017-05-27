@@ -16,6 +16,7 @@ package cmd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/intelux/insteon/plm"
@@ -44,11 +45,18 @@ var getInfoCmd = &cobra.Command{
 
 		ctx := context.Background()
 		ctx, _ = context.WithTimeout(ctx, time.Second)
-		err = powerLineModem.GetDeviceInfo(ctx, identity)
+		deviceInfo, err := powerLineModem.GetDeviceInfo(ctx, identity)
 
 		if err != nil {
 			return err
 		}
+
+		fmt.Printf("Device: %s\n", identity)
+		fmt.Printf("X10 house code: %02x\n", deviceInfo.X10HouseCode)
+		fmt.Printf("X10 unit: %02x\n", deviceInfo.X10Unit)
+		fmt.Printf("Ramp rate: %v\n", deviceInfo.RampRate)
+		fmt.Printf("On level: %.2f\n", deviceInfo.OnLevel)
+		fmt.Printf("LED brightness: %.2f\n", deviceInfo.LEDBrightness)
 
 		return nil
 	},

@@ -120,4 +120,6 @@ func skipToMessage(r io.Reader) (byte, error) {
 var responsesSizes = map[CommandCode]int{
 	GetIMInfo:                     7,
 	SendStandardOrExtendedMessage: 7,
+	StandardMessageReceived:       9,
+	ExtendedMessageReceived:       23,
 }

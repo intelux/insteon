@@ -16,8 +16,19 @@ const (
 type CommandCode byte
 
 const (
+	// Messages sent from host to PLM.
+
 	// GetIMInfo asks the modem for its information.
 	GetIMInfo CommandCode = 0x60
 	// SendStandardOrExtendedMessage send a message to the PLM.
 	SendStandardOrExtendedMessage = 0x62
+
+	// Messages sent from PLM to host.
+
+	// StandardMessageReceived is used when the PLM transmits a received
+	// standard message to the host.
+	StandardMessageReceived = 0x50
+	// ExtendedMessageReceived is used when the PLM transmits a received
+	// extended message to the host.
+	ExtendedMessageReceived = 0x51
 )
