@@ -21,6 +21,9 @@ const (
 // CommandBytes represent a pair of command bytes.
 type CommandBytes [2]byte
 
+// UserData represent user data.
+type UserData [14]byte
+
 // SendStandardOrExtendedMessageRequest is sent when information about is PLM is requested.
 type SendStandardOrExtendedMessageRequest struct {
 	Target       Identity
@@ -33,6 +36,19 @@ type SendStandardOrExtendedMessageRequest struct {
 
 func (SendStandardOrExtendedMessageRequest) commandCode() CommandCode {
 	return SendStandardOrExtendedMessage
+}
+
+func (r SendStandardOrExtendedMessageRequest) checksum() byte {
+	var checksum byte
+
+	for _, b := range r.CommandBytes {
+		checksum += b
+	}
+	for _, b := range r.UserData {
+		checksum += b
+	}
+
+	return ((0xff ^ checksum) + 1) & 0xff
 }
 
 func (r SendStandardOrExtendedMessageRequest) write(w io.Writer) error {

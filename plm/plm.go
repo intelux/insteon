@@ -216,12 +216,11 @@ func (m *PowerLineModem) GetInfo(ctx context.Context) (IMInfo, error) {
 	return response.IMInfo, nil
 }
 
-// SetLightState sets the state of a lighting device.
-func (m *PowerLineModem) SetLightState(ctx context.Context, identity Identity, state LightState) error {
+func (m *PowerLineModem) sendStandardMessage(ctx context.Context, identity Identity, commandBytes CommandBytes) (SendStandardOrExtendedMessageResponse, error) {
 	device, err := m.Acquire(ctx)
 
 	if err != nil {
-		return err
+		return SendStandardOrExtendedMessageResponse{}, err
 	}
 
 	defer device.Close()
@@ -231,49 +230,68 @@ func (m *PowerLineModem) SetLightState(ctx context.Context, identity Identity, s
 		HopsLeft:     2,
 		MaxHops:      3,
 		Flags:        0,
-		CommandBytes: state.commandBytes(),
+		CommandBytes: commandBytes,
 	})
 
 	if err != nil {
-		return err
+		return SendStandardOrExtendedMessageResponse{}, err
 	}
 
 	var response SendStandardOrExtendedMessageResponse
 
 	if err := UnmarshalResponse(device, &response); err != nil {
-		return err
+		return SendStandardOrExtendedMessageResponse{}, err
 	}
 
-	return nil
+	return response, nil
+}
+
+func (m *PowerLineModem) sendExtendedMessage(ctx context.Context, identity Identity, commandBytes CommandBytes, userData UserData) (SendStandardOrExtendedMessageResponse, error) {
+	device, err := m.Acquire(ctx)
+
+	if err != nil {
+		return SendStandardOrExtendedMessageResponse{}, err
+	}
+
+	defer device.Close()
+
+	err = MarshalRequest(device, SendStandardOrExtendedMessageRequest{
+		Target:       identity,
+		HopsLeft:     2,
+		MaxHops:      3,
+		Flags:        MessageFlagExtended,
+		CommandBytes: commandBytes,
+		UserData:     userData,
+	})
+
+	if err != nil {
+		return SendStandardOrExtendedMessageResponse{}, err
+	}
+
+	var response SendStandardOrExtendedMessageResponse
+
+	if err := UnmarshalResponse(device, &response); err != nil {
+		return SendStandardOrExtendedMessageResponse{}, err
+	}
+
+	return response, nil
+}
+
+// SetLightState sets the state of a lighting device.
+func (m *PowerLineModem) SetLightState(ctx context.Context, identity Identity, state LightState) error {
+	_, err := m.sendStandardMessage(ctx, identity, state.commandBytes())
+	return err
 }
 
 // Beep makes a device beep.
 func (m *PowerLineModem) Beep(ctx context.Context, identity Identity) error {
-	device, err := m.Acquire(ctx)
+	_, err := m.sendStandardMessage(ctx, identity, CommandBytesBeep)
+	return err
+}
 
-	if err != nil {
-		return err
-	}
-
-	defer device.Close()
-
-	err = MarshalRequest(device, SendStandardOrExtendedMessageRequest{
-		Target:       identity,
-		HopsLeft:     2,
-		MaxHops:      3,
-		Flags:        0,
-		CommandBytes: CommandBytesBeep,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	var response SendStandardOrExtendedMessageResponse
-
-	if err := UnmarshalResponse(device, &response); err != nil {
-		return err
-	}
-
-	return nil
+// GetDeviceInfo gets the device info.
+func (m *PowerLineModem) GetDeviceInfo(ctx context.Context, identity Identity) error {
+	_, err := m.sendExtendedMessage(ctx, identity, CommandBytesGetDeviceInfo, UserData{})
+	// TODO: Wait for the actual info.
+	return err
 }
