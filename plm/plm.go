@@ -396,3 +396,51 @@ func (m *PowerLineModem) SetDeviceX10Address(ctx context.Context, identity Ident
 
 	return err
 }
+
+// GetAllLinkRecords gets all the all-link records.
+func (m *PowerLineModem) GetAllLinkRecords(ctx context.Context) error {
+	device, err := m.Acquire(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	defer device.Close()
+
+	err = MarshalRequest(device, GetFirstAllLinkRecordRequest{})
+
+	if err != nil {
+		return err
+	}
+
+	var response GetFirstAllLinkRecordResponse
+
+	if err = UnmarshalResponse(device, &response); err != nil {
+		if err == ErrCommandFailure {
+			// The database is empty.
+			return nil
+		}
+
+		return err
+	}
+
+	for {
+		err := MarshalRequest(device, GetNextAllLinkRecordRequest{})
+
+		if err != nil {
+			return err
+		}
+
+		var nextResponse GetNextAllLinkRecordResponse
+
+		if err = UnmarshalResponse(device, &nextResponse); err != nil {
+			if err == ErrCommandFailure {
+				break
+			}
+
+			return err
+		}
+	}
+
+	return nil
+}
