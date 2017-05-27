@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"time"
 
 	"github.com/intelux/insteon/serial"
 )
@@ -316,4 +317,82 @@ func (m *PowerLineModem) GetDeviceInfo(ctx context.Context, identity Identity) (
 	}
 
 	return deviceInfoFromUserData(response.UserData), nil
+}
+
+// SetDeviceRampRate sets the ramp-rate of a device.
+func (m *PowerLineModem) SetDeviceRampRate(ctx context.Context, identity Identity, rampRate time.Duration) error {
+	device, err := m.Acquire(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	defer device.Close()
+
+	userData := UserData{}
+	userData[1] = 0x05
+	userData[2] = rampRateToByte(rampRate)
+	fmt.Println(userData[2])
+
+	_, err = m.sendExtendedMessage(device, identity, CommandBytesSetDeviceInfo, userData)
+
+	return err
+}
+
+// SetDeviceOnLevel sets the on level of a device.
+func (m *PowerLineModem) SetDeviceOnLevel(ctx context.Context, identity Identity, level float64) error {
+	device, err := m.Acquire(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	defer device.Close()
+
+	userData := UserData{}
+	userData[1] = 0x06
+	userData[2] = onLevelToByte(level)
+
+	_, err = m.sendExtendedMessage(device, identity, CommandBytesSetDeviceInfo, userData)
+
+	return err
+}
+
+// SetDeviceLEDBrightness sets the LED brightness of a device.
+func (m *PowerLineModem) SetDeviceLEDBrightness(ctx context.Context, identity Identity, level float64) error {
+	device, err := m.Acquire(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	defer device.Close()
+
+	userData := UserData{}
+	userData[1] = 0x07
+	userData[2] = ledBrightnessToByte(level)
+
+	_, err = m.sendExtendedMessage(device, identity, CommandBytesSetDeviceInfo, userData)
+
+	return err
+}
+
+// SetDeviceX10Address sets the X10 address of a device.
+func (m *PowerLineModem) SetDeviceX10Address(ctx context.Context, identity Identity, x10HouseCode byte, x10Unit byte) error {
+	device, err := m.Acquire(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	defer device.Close()
+
+	userData := UserData{}
+	userData[1] = 0x04
+	userData[2] = x10HouseCode
+	userData[3] = x10Unit
+
+	_, err = m.sendExtendedMessage(device, identity, CommandBytesSetDeviceInfo, userData)
+
+	return err
 }

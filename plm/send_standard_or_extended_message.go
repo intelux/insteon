@@ -22,7 +22,7 @@ func (r SendStandardOrExtendedMessageRequest) checksum() byte {
 	return checksum(r.CommandBytes, r.UserData)
 }
 
-func (r SendStandardOrExtendedMessageRequest) write(w io.Writer) error {
+func (r SendStandardOrExtendedMessageRequest) marshal(w io.Writer) error {
 	flagsByte := byte(
 		(r.MaxHops & 0x03) | (r.HopsLeft&0x03)<<2 | int(r.Flags),
 	)
@@ -34,6 +34,7 @@ func (r SendStandardOrExtendedMessageRequest) write(w io.Writer) error {
 
 	if r.Flags&MessageFlagExtended != 0 {
 		data = append(data, r.UserData[:]...)
+		data[len(data)-1] = r.checksum()
 	}
 
 	_, err := w.Write(data)

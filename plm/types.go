@@ -338,11 +338,16 @@ type CommandBytes [2]byte
 // UserData represent user data.
 type UserData [14]byte
 
-// CommandBytesBeep is used to make a device beep.
-var CommandBytesBeep = CommandBytes{0x30, 0x00}
+var (
+	// CommandBytesBeep is used to make a device beep.
+	CommandBytesBeep = CommandBytes{0x30, 0x00}
 
-// CommandBytesGetDeviceInfo is used to get the device information.
-var CommandBytesGetDeviceInfo = CommandBytes{0x2e, 0x00}
+	// CommandBytesGetDeviceInfo is used to get the device information.
+	CommandBytesGetDeviceInfo = CommandBytes{0x2e, 0x00}
+
+	// CommandBytesSetDeviceInfo is used to set the device information.
+	CommandBytesSetDeviceInfo = CommandBytes{0x2e, 0x00}
+)
 
 func checksum(commandBytes CommandBytes, userData UserData) byte {
 	var checksum byte

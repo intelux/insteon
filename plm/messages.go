@@ -15,7 +15,7 @@ type CommandCoder interface {
 // Request is the interface for all requests.
 type Request interface {
 	CommandCoder
-	write(io.Writer) error
+	marshal(io.Writer) error
 }
 
 // Response is the interface for all responses.
@@ -54,7 +54,7 @@ func MarshalRequest(w io.Writer, request Request) error {
 		return err
 	}
 
-	return request.write(bw)
+	return request.marshal(bw)
 }
 
 // UnmarshalResponse parses a response from a reader.

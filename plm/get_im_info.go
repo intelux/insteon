@@ -7,7 +7,7 @@ type GetIMInfoRequest struct{}
 
 func (GetIMInfoRequest) commandCode() CommandCode { return GetIMInfo }
 
-func (GetIMInfoRequest) write(io.Writer) error { return nil }
+func (GetIMInfoRequest) marshal(io.Writer) error { return nil }
 
 // GetIMInfoResponse is returned when information about is PLM is requested.
 type GetIMInfoResponse struct {
