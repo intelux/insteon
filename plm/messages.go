@@ -118,8 +118,19 @@ func skipToMessage(r io.Reader) (byte, error) {
 }
 
 var responsesSizes = map[CommandCode]int{
-	GetIMInfo:                     7,
-	SendStandardOrExtendedMessage: 7,
 	StandardMessageReceived:       9,
 	ExtendedMessageReceived:       23,
+	X10Received:                   2,
+	AllLinkingCompleted:           8,
+	ButtonEventReport:             1,
+	UserResetDetected:             0,
+	AllLinkCleanupFailureReport:   5,
+	AllLinkRecordResponse:         8,
+	AllLinkCleanupStatusReport:    1,
+	GetIMInfo:                     7,
+	GetFirstAllLinkRecord:         1,
+	GetNextAllLinkRecord:          1,
+	StartAllLinking:               3,
+	CancelAllLinking:              1,
+	SendStandardOrExtendedMessage: 7,
 }
