@@ -15,7 +15,10 @@ package cmd
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
+	"os"
+	"text/tabwriter"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -40,10 +43,14 @@ var getAllLinkRecordsCmd = &cobra.Command{
 			return nil
 		}
 
-		fmt.Printf("Listing %d all-link record(s):\n", len(records))
+		w := &tabwriter.Writer{}
+		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
+		defer w.Flush()
+
+		fmt.Fprintf(w, "#\tDevice\tGroup\tMode\tLink-data\n")
 
 		for idx, record := range records {
-			fmt.Printf("%02d - %v\n", idx, record)
+			fmt.Fprintf(w, "%2d\t%s\t%d\t%s\t%s\n", idx, record.Identity, record.Group, record.Mode(), hex.EncodeToString(record.LinkData[:]))
 		}
 
 		return nil

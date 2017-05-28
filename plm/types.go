@@ -355,6 +355,44 @@ type AllLinkRecord struct {
 	LinkData LinkData
 }
 
+// Mode returns the mode of an all-link record.
+func (r AllLinkRecord) Mode() AllLinkMode {
+	if r.Flags&0x40 > 0 {
+		return ModeResponder
+	}
+
+	return ModeController
+}
+
+// AllLinkMode represents an all-link mode.
+type AllLinkMode byte
+
+const (
+	// ModeResponder represents a responder.
+	ModeResponder AllLinkMode = 0x00
+	// ModeController represents a controller.
+	ModeController AllLinkMode = 0x01
+	// ModeAuto represents auto-selection of the mode.
+	ModeAuto AllLinkMode = 0x03
+	// ModeDelete represents a deletion of an all-link record.
+	ModeDelete AllLinkMode = 0xff
+)
+
+func (m AllLinkMode) String() string {
+	switch m {
+	case ModeResponder:
+		return "responder"
+	case ModeController:
+		return "controller"
+	case ModeAuto:
+		return "auto"
+	case ModeDelete:
+		return "delete"
+	default:
+		panic(fmt.Errorf("unknown all-link mode %d", m))
+	}
+}
+
 var (
 	// CommandBytesBeep is used to make a device beep.
 	CommandBytesBeep = CommandBytes{0x30, 0x00}
