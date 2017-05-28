@@ -350,6 +350,30 @@ type CommandBytes [2]byte
 
 func (b CommandBytes) String() string {
 	switch b[0] {
+	case 0x01:
+		return fmt.Sprintf("assigned to all-link group %02d", b[1])
+	case 0x02:
+		return fmt.Sprintf("deleted from all-link group %02d", b[1])
+	case 0x03:
+		switch b[1] {
+		case 0x00:
+			return "product data requested"
+		case 0x01:
+			return "fx username requested"
+		}
+	case 0x09:
+		return fmt.Sprintf("entered all-link linking for group %02d", b[1])
+	case 0x0a:
+		return fmt.Sprintf("entered all-link unlinking for group %02d", b[1])
+	case 0x0d:
+		switch b[1] {
+		case 0x00:
+			return "Insteon engine version requested"
+		}
+	case 0x0f:
+		return "ping"
+	case 0x10:
+		return "id request"
 	case 0x11:
 		return fmt.Sprintf("turn on (level %.02f%%)", byteToOnLevel(b[1])*100)
 	case 0x12:
@@ -358,6 +382,28 @@ func (b CommandBytes) String() string {
 		return fmt.Sprintf("turn off (level %.02f%%)", byteToOnLevel(b[1])*100)
 	case 0x14:
 		return "turn off instantly"
+	case 0x15:
+		return "brighten one step"
+	case 0x16:
+		return "dim one step"
+	case 0x17:
+		switch b[1] {
+		case 0x00:
+			return "change started (dimming)"
+		case 0x01:
+			return "changed started (brightening)"
+		}
+	case 0x18:
+		return "change stopped"
+	case 0x19:
+		switch b[1] {
+		case 0x00:
+			return "light status request (on level)"
+		case 0x01:
+			return "light status request (led info)"
+		}
+	case 0x1f:
+		return "get operating flags"
 	}
 
 	return fmt.Sprintf("unknown command: %s", hex.EncodeToString(b[:]))

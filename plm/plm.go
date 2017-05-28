@@ -134,26 +134,31 @@ func (m *PowerLineModem) Close() {
 func readLoop(r io.Reader, responsesCh chan<- Response) {
 	responses := []Response{}
 
-	if responsesCh != nil {
-		defer close(responsesCh)
-		responses = append(
-			responses,
+	resetResponses := func() {
+		responses = []Response{
 			&StandardMessageReceivedResponse{},
 			&ExtendedMessageReceivedResponse{},
-		)
+		}
+	}
+
+	if responsesCh != nil {
+		defer close(responsesCh)
+		resetResponses()
 	}
 
 	for {
 		i, err := UnmarshalResponses(r, responses)
 
 		if err != nil && err != ErrCommandFailure {
-			return
+			panic(err)
 		}
 
 		if responsesCh != nil {
 			if err == nil {
 				responsesCh <- responses[i]
 			}
+
+			resetResponses()
 		}
 	}
 }
