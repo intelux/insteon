@@ -55,7 +55,19 @@ Type "ion -h" to discover all the other available commands.`,
 			powerLineModem.SetDebugStream(os.Stderr)
 		}
 
-		powerLineModem.Start()
+		var responses chan plm.Response
+
+		if viper.GetBool("monitor") {
+			responses = make(chan plm.Response)
+
+			go func() {
+				for response := range responses {
+					fmt.Println(response)
+				}
+			}()
+		}
+
+		powerLineModem.Start(responses)
 
 		return nil
 	},
@@ -81,12 +93,15 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.ion.yaml)")
 	RootCmd.PersistentFlags().String("device", "/dev/ttyUSB0", "The device to use that is connected to the PLM. Can be either a serial port or a TCP URL")
 	RootCmd.PersistentFlags().BoolP("debug", "d", false, "Enable debug output. For instance, this displays the RAW bytes as sent and received to/from the PLM.")
+	RootCmd.PersistentFlags().BoolP("monitor", "m", false, "Enable monitoring mode. Any received response will be decoded and printed to the standard output. This differs from `debug` which does not decode the responses.")
 
 	viper.SetEnvPrefix("ion")
 	viper.BindEnv("device")
 	viper.BindPFlag("device", RootCmd.PersistentFlags().Lookup("device"))
 	viper.BindEnv("debug")
 	viper.BindPFlag("debug", RootCmd.PersistentFlags().Lookup("debug"))
+	viper.BindEnv("monitor")
+	viper.BindPFlag("monitor", RootCmd.PersistentFlags().Lookup("monitor"))
 }
 
 // initConfig reads in config file and ENV variables if set.

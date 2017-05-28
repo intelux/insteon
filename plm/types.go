@@ -15,6 +15,12 @@ func (i Identity) String() string {
 	return hex.EncodeToString(i[:])
 }
 
+// AsGroup returns the identity as a group. Result is only valid if the
+// identity is the target of a broadcast message.
+func (i Identity) AsGroup() Group {
+	return Group(i[2])
+}
+
 // ParseIdentity parses an identity.
 func ParseIdentity(s string) (Identity, error) {
 	var identity Identity
@@ -341,6 +347,21 @@ type Group byte
 
 // CommandBytes represent a pair of command bytes.
 type CommandBytes [2]byte
+
+func (b CommandBytes) String() string {
+	switch b[0] {
+	case 0x11:
+		return fmt.Sprintf("turn on (level %.02f%%)", byteToOnLevel(b[1])*100)
+	case 0x12:
+		return fmt.Sprintf("turn on instantly (level %.02f%%)", byteToOnLevel(b[1])*100)
+	case 0x13:
+		return fmt.Sprintf("turn off (level %.02f%%)", byteToOnLevel(b[1])*100)
+	case 0x14:
+		return "turn off instantly"
+	}
+
+	return fmt.Sprintf("unknown command: %s", hex.EncodeToString(b[:]))
+}
 
 // UserData represent user data.
 type UserData [14]byte

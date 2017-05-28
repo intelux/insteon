@@ -33,8 +33,8 @@ type PowerLineModem struct {
 	reader io.Reader
 	writer io.Writer
 	closer io.Closer
-	stop   chan struct{}
 	tokens chan *requestToken
+	pipe   io.Closer
 }
 
 // ParseDevice parses a device specifiction string, either as a local file (to
@@ -94,7 +94,10 @@ func (m *PowerLineModem) SetDebugStream(w io.Writer) {
 // Start the PowerLine Modem.
 //
 // Attempting to start an already running intance has undefined behavior.
-func (m *PowerLineModem) Start() {
+//
+// If a responses channel is passed, it will be fed with all meaningful
+// received responses and closed whenever the read ends.
+func (m *PowerLineModem) Start(responses chan<- Response) {
 	// Create a pipe that can be connected/disconnected.
 	//
 	// Whenever a token becomes active, it will connect the pipe and receive
@@ -104,17 +107,12 @@ func (m *PowerLineModem) Start() {
 	// Copy all reads to the connected pipe.
 	reader := io.TeeReader(m.reader, pipe)
 
-	m.stop = make(chan struct{})
-	go readLoop(m.stop, reader)
+	go readLoop(reader, responses)
 
 	m.tokens = make(chan *requestToken)
 	go dispatchLoop(m.tokens, pipe)
 
-	// Close the pipe on stop.
-	go func() {
-		<-m.stop
-		pipe.Close()
-	}()
+	m.pipe = pipe
 }
 
 // Stop the PowerLine Modem.
@@ -124,8 +122,7 @@ func (m *PowerLineModem) Stop() {
 	close(m.tokens)
 	m.tokens = nil
 
-	close(m.stop)
-	m.stop = nil
+	m.pipe.Close()
 }
 
 // Close the PowerLine Modem.
@@ -134,17 +131,28 @@ func (m *PowerLineModem) Close() {
 	m.closer.Close()
 }
 
-func readLoop(stop <-chan struct{}, r io.Reader) {
-	for {
-		select {
-		case <-stop:
-			return
-		default:
-			msg := make([]byte, 16)
-			_, err := r.Read(msg)
+func readLoop(r io.Reader, responsesCh chan<- Response) {
+	responses := []Response{}
 
-			if err != nil {
-				panic(err)
+	if responsesCh != nil {
+		defer close(responsesCh)
+		responses = append(
+			responses,
+			&StandardMessageReceivedResponse{},
+			&ExtendedMessageReceivedResponse{},
+		)
+	}
+
+	for {
+		i, err := UnmarshalResponses(r, responses)
+
+		if err != nil && err != ErrCommandFailure {
+			return
+		}
+
+		if responsesCh != nil {
+			if err == nil {
+				responsesCh <- responses[i]
 			}
 		}
 	}

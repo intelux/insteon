@@ -1,6 +1,7 @@
 package plm
 
 import (
+	"fmt"
 	"io"
 )
 
@@ -13,6 +14,14 @@ type StandardMessageReceivedResponse struct {
 	MaxHops      int
 	Flags        MessageFlags
 	CommandBytes CommandBytes
+}
+
+func (res *StandardMessageReceivedResponse) String() string {
+	if res.Flags&MessageFlagBroadcast > 0 {
+		return fmt.Sprintf("%s -> group %d: %s", res.Sender, res.Target.AsGroup(), res.CommandBytes)
+	}
+
+	return fmt.Sprintf("%s -> %s: %s", res.Sender, res.Target, res.CommandBytes)
 }
 
 func (*StandardMessageReceivedResponse) commandCode() CommandCode {
