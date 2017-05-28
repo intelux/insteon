@@ -332,7 +332,6 @@ func (m *PowerLineModem) SetDeviceRampRate(ctx context.Context, identity Identit
 	userData := UserData{}
 	userData[1] = 0x05
 	userData[2] = rampRateToByte(rampRate)
-	fmt.Println(userData[2])
 
 	_, err = m.sendExtendedMessage(device, identity, CommandBytesSetDeviceInfo, userData)
 
@@ -398,11 +397,11 @@ func (m *PowerLineModem) SetDeviceX10Address(ctx context.Context, identity Ident
 }
 
 // GetAllLinkRecords gets all the all-link records.
-func (m *PowerLineModem) GetAllLinkRecords(ctx context.Context) error {
+func (m *PowerLineModem) GetAllLinkRecords(ctx context.Context) (records []AllLinkRecord, err error) {
 	device, err := m.Acquire(ctx)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	defer device.Close()
@@ -410,25 +409,33 @@ func (m *PowerLineModem) GetAllLinkRecords(ctx context.Context) error {
 	err = MarshalRequest(device, GetFirstAllLinkRecordRequest{})
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var response GetFirstAllLinkRecordResponse
 
 	if err = UnmarshalResponse(device, &response); err != nil {
 		if err == ErrCommandFailure {
-			// The database is empty.
-			return nil
+			// The database is empty. We return nil.
+			return records, nil
 		}
 
-		return err
+		return nil, err
 	}
 
+	var allLinkRecordResponse AllLinkRecordResponse
+
 	for {
+		if err = UnmarshalResponse(device, &allLinkRecordResponse); err != nil {
+			return nil, err
+		}
+
+		records = append(records, allLinkRecordResponse.Record)
+
 		err := MarshalRequest(device, GetNextAllLinkRecordRequest{})
 
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		var nextResponse GetNextAllLinkRecordResponse
@@ -438,9 +445,9 @@ func (m *PowerLineModem) GetAllLinkRecords(ctx context.Context) error {
 				break
 			}
 
-			return err
+			return nil, err
 		}
 	}
 
-	return nil
+	return records, nil
 }

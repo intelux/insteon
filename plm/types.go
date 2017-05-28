@@ -347,6 +347,14 @@ type UserData [14]byte
 // LinkData represent link data.
 type LinkData [3]byte
 
+// AllLinkRecord represents a all-link record.
+type AllLinkRecord struct {
+	Flags    AllLinkRecordFlags
+	Group    Group
+	Identity Identity
+	LinkData LinkData
+}
+
 var (
 	// CommandBytesBeep is used to make a device beep.
 	CommandBytesBeep = CommandBytes{0x30, 0x00}
