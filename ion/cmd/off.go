@@ -24,6 +24,7 @@ import (
 
 var (
 	offInstant bool
+	offStep    bool
 )
 
 // offCmd represents the off command
@@ -46,12 +47,24 @@ var offCmd = &cobra.Command{
 			return err
 		}
 
+		var change = plm.ChangeNormal
+
+		if offInstant {
+			if offStep {
+				return errors.New("can't specify both `--instant` and `--step`")
+			}
+
+			change = plm.ChangeInstant
+		} else if offStep {
+			change = plm.ChangeStep
+		}
+
 		ctx := context.Background()
 		ctx, _ = context.WithTimeout(ctx, time.Second)
 		state := plm.LightState{
-			OnOff:   plm.LightOff,
-			Instant: offInstant,
-			Level:   0,
+			OnOff:  plm.LightOff,
+			Change: change,
+			Level:  0,
 		}
 		err = powerLineModem.SetLightState(ctx, identity, state)
 
@@ -64,6 +77,7 @@ var offCmd = &cobra.Command{
 }
 
 func init() {
-	offCmd.Flags().BoolVarP(&offInstant, "instant", "i", false, "Change the light state instantly.")
+	offCmd.Flags().BoolVarP(&offInstant, "instant", "i", false, "Change the light state instantly. Incompatible with --step.")
+	offCmd.Flags().BoolVarP(&offStep, "step", "s", false, "Change the light state by step. Incompatible with --instant.")
 	RootCmd.AddCommand(offCmd)
 }

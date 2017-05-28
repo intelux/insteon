@@ -24,6 +24,7 @@ import (
 
 var (
 	onInstant bool
+	onStep    bool
 	onLevel   float64
 )
 
@@ -47,12 +48,25 @@ var onCmd = &cobra.Command{
 			return err
 		}
 
+		var change = plm.ChangeNormal
+
+		if onInstant {
+			if onStep {
+				return errors.New("can't specify both `--instant` and `--step`")
+			}
+
+			change = plm.ChangeInstant
+		} else if onStep {
+			change = plm.ChangeStep
+		}
+
 		ctx := context.Background()
 		ctx, _ = context.WithTimeout(ctx, time.Second)
+
 		state := plm.LightState{
-			OnOff:   plm.LightOn,
-			Instant: onInstant,
-			Level:   onLevel,
+			OnOff:  plm.LightOn,
+			Change: change,
+			Level:  onLevel,
 		}
 		err = powerLineModem.SetLightState(ctx, identity, state)
 
@@ -65,7 +79,8 @@ var onCmd = &cobra.Command{
 }
 
 func init() {
-	onCmd.Flags().BoolVarP(&onInstant, "instant", "i", false, "Change the light state instantly and at full value (level is ignored).")
+	onCmd.Flags().BoolVarP(&onInstant, "instant", "i", false, "Change the light state instantly and at full value (level is ignored). Incompatible with --step.")
+	onCmd.Flags().BoolVarP(&onStep, "step", "s", false, "Change the light state by step (level is ignored). Incompatible with --instant.")
 	onCmd.Flags().Float64VarP(&onLevel, "level", "l", 1.0, "The light level, as a decimal value in the [0, 1] range.")
 	RootCmd.AddCommand(onCmd)
 }

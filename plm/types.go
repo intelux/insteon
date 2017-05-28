@@ -300,26 +300,60 @@ func (s LightOnOff) String() string {
 	return "off"
 }
 
+// LightStateChange represents a light state change.
+type LightStateChange int
+
+const (
+	// ChangeNormal indicates that the light state must change as if a single
+	// press had been done.
+	ChangeNormal LightStateChange = iota
+	// ChangeInstant indicates that the light state must change instantly, as
+	// if a quick double-press had been done.
+	ChangeInstant
+	// ChangeStep indicates that the light state must change for one step up or
+	// down.
+	ChangeStep
+	// ChangeStart indicates that the light state must start changing until a
+	// ChangeStop change is set.
+	ChangeStart
+	// ChangeStop stops a light change started with ChangeStart.
+	ChangeStop
+)
+
 // LightState represents a light state.
 type LightState struct {
-	OnOff   LightOnOff
-	Instant bool
-	Level   float64
+	OnOff  LightOnOff
+	Change LightStateChange
+	Level  float64
 }
 
 func (s LightState) commandBytes() CommandBytes {
 	levelByte := onLevelToByte(s.Level)
 
 	if s.OnOff == LightOn {
-		if s.Instant {
+		switch s.Change {
+		case ChangeInstant:
 			return CommandBytes([2]byte{0x12, levelByte})
+		case ChangeStep:
+			return CommandBytes([2]byte{0x15, 0})
+		case ChangeStart:
+			return CommandBytes([2]byte{0x17, 0x01})
+		case ChangeStop:
+			return CommandBytes([2]byte{0x18, 0x00})
 		}
 
 		return CommandBytes([2]byte{0x11, levelByte})
 	}
 
-	if s.Instant {
+	switch s.Change {
+	case ChangeInstant:
 		return CommandBytes([2]byte{0x14, levelByte})
+	case ChangeStep:
+		return CommandBytes([2]byte{0x16, 0})
+	case ChangeStart:
+		return CommandBytes([2]byte{0x17, 0x00})
+	case ChangeStop:
+		return CommandBytes([2]byte{0x18, 0x00})
 	}
 
 	return CommandBytes([2]byte{0x13, levelByte})
