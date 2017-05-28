@@ -1,6 +1,7 @@
 package plm
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
 	"math"
@@ -362,6 +363,34 @@ func (r AllLinkRecord) Mode() AllLinkMode {
 	}
 
 	return ModeController
+}
+
+// AllLinkRecordList represents a list of all-link records.
+type AllLinkRecordList []AllLinkRecord
+
+// Len returns the length of the list.
+func (l AllLinkRecordList) Len() int {
+	return len(l)
+}
+
+// Less returns whether the element at i should appear before the element at j.
+func (l AllLinkRecordList) Less(i, j int) bool {
+	order := bytes.Compare(l[i].Identity[:], l[j].Identity[:])
+
+	if order != 0 {
+		return order < 0
+	}
+
+	if l[i].Group != l[j].Group {
+		return l[i].Group < l[j].Group
+	}
+
+	return l[i].Mode() < l[j].Mode()
+}
+
+// Swap swaps two elements.
+func (l AllLinkRecordList) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
 }
 
 // AllLinkMode represents an all-link mode.

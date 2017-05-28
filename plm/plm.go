@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"sort"
 	"time"
 
 	"github.com/intelux/insteon/serial"
@@ -397,7 +398,7 @@ func (m *PowerLineModem) SetDeviceX10Address(ctx context.Context, identity Ident
 }
 
 // GetAllLinkRecords gets all the all-link records.
-func (m *PowerLineModem) GetAllLinkRecords(ctx context.Context) (records []AllLinkRecord, err error) {
+func (m *PowerLineModem) GetAllLinkRecords(ctx context.Context) (records AllLinkRecordList, err error) {
 	device, err := m.Acquire(ctx)
 
 	if err != nil {
@@ -448,6 +449,8 @@ func (m *PowerLineModem) GetAllLinkRecords(ctx context.Context) (records []AllLi
 			return nil, err
 		}
 	}
+
+	sort.Sort(records)
 
 	return records, nil
 }
