@@ -30,11 +30,12 @@ func (t *requestToken) Close() error {
 // PowerLineModem represents an Insteon PowerLine Modem device, which can be
 // connected locally or via a TCP socket.
 type PowerLineModem struct {
-	reader io.Reader
-	writer io.Writer
-	closer io.Closer
-	tokens chan *requestToken
-	pipe   io.Closer
+	reader  io.Reader
+	writer  io.Writer
+	closer  io.Closer
+	tokens  chan *requestToken
+	pipe    io.Closer
+	aliases Aliases
 }
 
 // ParseDevice parses a device specifiction string, either as a local file (to
@@ -67,11 +68,15 @@ func ParseDevice(device string) (io.ReadWriteCloser, error) {
 // New create a new PowerLineModem device.
 func New(device io.ReadWriteCloser) *PowerLineModem {
 	return &PowerLineModem{
-		reader: device,
-		writer: device,
-		closer: device,
+		reader:  device,
+		writer:  device,
+		closer:  device,
+		aliases: make(aliases),
 	}
 }
+
+// Aliases returns the associated aliases.
+func (m *PowerLineModem) Aliases() Aliases { return m.aliases }
 
 // SetDebugStream enables debug output on the specified writer.
 func (m *PowerLineModem) SetDebugStream(w io.Writer) {

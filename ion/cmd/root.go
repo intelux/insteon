@@ -51,6 +51,16 @@ Type "ion -h" to discover all the other available commands.`,
 
 		powerLineModem = plm.New(device)
 
+		for alias, identityString := range config.Aliases {
+			identity, err := plm.ParseIdentity(identityString)
+
+			if err != nil {
+				return fmt.Errorf("invalid alias value for `%s`: %s", alias, err)
+			}
+
+			powerLineModem.Aliases().Add(alias, identity)
+		}
+
 		if viper.GetBool("debug") {
 			powerLineModem.SetDebugStream(os.Stderr)
 		}
@@ -104,6 +114,13 @@ func init() {
 	viper.BindPFlag("monitor", RootCmd.PersistentFlags().Lookup("monitor"))
 }
 
+// Config describes the configuration file.
+type Config struct {
+	Aliases map[string]string
+}
+
+var config Config
+
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
 	if cfgFile != "" {
@@ -128,5 +145,9 @@ func initConfig() {
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
+
+		if err = viper.Unmarshal(&config); err != nil {
+			panic(err)
+		}
 	}
 }

@@ -18,7 +18,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/intelux/insteon/plm"
 	"github.com/spf13/cobra"
 )
 
@@ -40,7 +39,7 @@ var setRampRateCmd = &cobra.Command{
 			return errors.New("too many arguments")
 		}
 
-		identity, err := plm.ParseIdentity(args[0])
+		identity, err := powerLineModem.Aliases().ParseIdentity(args[0])
 
 		if err != nil {
 			return err
