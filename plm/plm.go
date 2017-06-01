@@ -34,6 +34,7 @@ type PowerLineModem struct {
 	writer  io.Writer
 	closer  io.Closer
 	tokens  chan *requestToken
+	stop    chan struct{}
 	pipe    io.Closer
 	aliases Aliases
 }
@@ -112,10 +113,12 @@ func (m *PowerLineModem) Start(responses chan<- Response) {
 	// Copy all reads to the connected pipe.
 	reader := io.TeeReader(m.reader, pipe)
 
-	go readLoop(reader, responses)
+	m.stop = make(chan struct{})
+
+	go readLoop(m.stop, reader, responses)
 
 	m.tokens = make(chan *requestToken)
-	go dispatchLoop(m.tokens, pipe)
+	go dispatchLoop(m.stop, m.tokens, pipe)
 
 	m.pipe = pipe
 }
@@ -124,6 +127,8 @@ func (m *PowerLineModem) Start(responses chan<- Response) {
 //
 // Attempting to stop a non-running intance has undefined behavior.
 func (m *PowerLineModem) Stop() {
+	close(m.stop)
+	m.stop = nil
 	close(m.tokens)
 	m.tokens = nil
 
@@ -136,7 +141,15 @@ func (m *PowerLineModem) Close() {
 	m.closer.Close()
 }
 
-func readLoop(r io.Reader, responsesCh chan<- Response) {
+func panicStop(stop <-chan struct{}, err error) {
+	select {
+	case <-stop:
+	default:
+		panic(err)
+	}
+}
+
+func readLoop(stop <-chan struct{}, r io.Reader, responsesCh chan<- Response) {
 	responses := []Response{}
 
 	resetResponses := func() {
@@ -155,7 +168,8 @@ func readLoop(r io.Reader, responsesCh chan<- Response) {
 		i, err := UnmarshalResponses(r, responses)
 
 		if err != nil && err != ErrCommandFailure {
-			panic(err)
+			// Check if we have failure, we only panic if it wasn't expected.
+			panicStop(stop, err)
 		}
 
 		if responsesCh != nil {
@@ -168,7 +182,7 @@ func readLoop(r io.Reader, responsesCh chan<- Response) {
 	}
 }
 
-func dispatchLoop(tokens <-chan *requestToken, c Connecter) {
+func dispatchLoop(stop <-chan struct{}, tokens <-chan *requestToken, c Connecter) {
 	for token := range tokens {
 		close(token.ready)
 		err := c.Connect(token.pipeWriter)
@@ -176,7 +190,8 @@ func dispatchLoop(tokens <-chan *requestToken, c Connecter) {
 		// An io.ErrClosedPipe means either the Connecter or the underlying
 		// Writer was closed, which are both expected.
 		if err != io.ErrClosedPipe {
-			panic(err)
+			// Check if we have failure, we only panic if it wasn't expected.
+			panicStop(stop, err)
 		}
 	}
 }
