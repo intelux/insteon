@@ -1,6 +1,7 @@
 package plm
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -14,7 +15,7 @@ type CommandCoder interface {
 // Request is the interface for all requests.
 type Request interface {
 	CommandCoder
-	write(io.Writer) error
+	marshal(io.Writer) error
 }
 
 // Response is the interface for all responses.
@@ -39,7 +40,12 @@ func (e errUnknownCommand) Error() string {
 
 // MarshalRequest serializes a request to a writer.
 func MarshalRequest(w io.Writer, request Request) error {
-	_, err := w.Write([]byte{
+	// Make sure we send it all at once. Not that it is mandatory, but it's
+	// easier to debug.
+	bw := bufio.NewWriter(w)
+	defer bw.Flush()
+
+	_, err := bw.Write([]byte{
 		byte(MessageStart),
 		byte(request.commandCode()),
 	})
@@ -48,20 +54,20 @@ func MarshalRequest(w io.Writer, request Request) error {
 		return err
 	}
 
-	return request.write(w)
+	return request.marshal(bw)
 }
 
-// UnmarshalResponse parses a response from a reader.
-func UnmarshalResponse(r io.Reader, response Response) error {
+// UnmarshalResponses parses responses from a reader and returns the index of the response that was unmarshalled.
+func UnmarshalResponses(r io.Reader, responses []Response) (int, error) {
 	for {
 		mark, err := skipToMessage(r)
 
 		if err != nil {
-			return err
+			return -1, err
 		}
 
 		if mark == MessageNak {
-			return ErrCommandFailure
+			return -1, ErrCommandFailure
 		}
 
 		buffer := make([]byte, 1)
@@ -69,28 +75,40 @@ func UnmarshalResponse(r io.Reader, response Response) error {
 		_, err = r.Read(buffer)
 
 		if err != nil {
-			return err
+			return -1, err
 		}
 
 		commandCode := CommandCode(buffer[0])
 
-		if commandCode != response.commandCode() {
-			buffer := make([]byte, responsesSizes[commandCode])
-			_, err = io.ReadFull(r, buffer)
+		for i, response := range responses {
+			if commandCode == response.commandCode() {
+				err = response.unmarshal(r)
 
-			if err != nil {
-				return err
+				if err != nil {
+					return i, err
+				}
+
+				return i, nil
 			}
-		} else {
-			err = response.unmarshal(r)
+		}
 
-			if err != nil {
-				return err
-			}
+		// No response matches the command code. Let's read it all and move-on to the next message.
+		// If a command code is missing from the table, we read nothing and
+		// wait for the next message start, effectively discarding any bytes
+		// in-between.
+		buffer = make([]byte, responsesSizes[commandCode])
+		_, err = io.ReadFull(r, buffer)
 
-			return nil
+		if err != nil {
+			return -1, err
 		}
 	}
+}
+
+// UnmarshalResponse parses a response from a reader.
+func UnmarshalResponse(r io.Reader, response Response) error {
+	_, err := UnmarshalResponses(r, []Response{response})
+	return err
 }
 
 // skipToMessage skips bytes on the specified io.Reader until a message start
@@ -112,41 +130,19 @@ func skipToMessage(r io.Reader) (byte, error) {
 }
 
 var responsesSizes = map[CommandCode]int{
-	GetIMInfo: 7,
-}
-
-// GetIMInfoRequest is sent when information about is PLM is requested.
-type GetIMInfoRequest struct{}
-
-func (GetIMInfoRequest) commandCode() CommandCode { return GetIMInfo }
-
-func (GetIMInfoRequest) write(io.Writer) error { return nil }
-
-// GetIMInfoResponse is returned when information about is PLM is requested.
-type GetIMInfoResponse struct {
-	IMInfo IMInfo
-}
-
-func (*GetIMInfoResponse) commandCode() CommandCode { return GetIMInfo }
-func (res *GetIMInfoResponse) unmarshal(r io.Reader) error {
-	buffer := make([]byte, 7)
-
-	_, err := io.ReadFull(r, buffer)
-
-	if err != nil {
-		return err
-	}
-
-	if buffer[len(buffer)-1] != MessageAck {
-		return ErrCommandFailure
-	}
-
-	copy(res.IMInfo.Identity[:], buffer[:3])
-	res.IMInfo.Category = Category{
-		mainCategory: MainCategory(buffer[3]),
-		subCategory:  SubCategory(buffer[4]),
-	}
-	res.IMInfo.FirmwareVersion = buffer[5]
-
-	return nil
+	StandardMessageReceived:       9,
+	ExtendedMessageReceived:       23,
+	X10Received:                   2,
+	AllLinkingCompleted:           8,
+	ButtonEventReport:             1,
+	UserResetDetected:             0,
+	AllLinkCleanupFailureReport:   5,
+	AllLinkRecordMessage:          8,
+	AllLinkCleanupStatusReport:    1,
+	GetIMInfo:                     7,
+	GetFirstAllLinkRecord:         1,
+	GetNextAllLinkRecord:          1,
+	StartAllLinking:               3,
+	CancelAllLinking:              1,
+	SendStandardOrExtendedMessage: 7,
 }

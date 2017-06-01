@@ -1,5 +1,5 @@
 hash: 5cb1605b0a129761462a4670116a330dce4cc2b407486ca36154a038c3ae162f
-updated: 2017-05-20T08:59:04.4079073-04:00
+updated: 2017-05-28T15:58:49.216337039-04:00
 imports:
 - name: github.com/fsnotify/fsnotify
   version: 4da3e2cfbabc9f751898f250b49f2439785783a1
@@ -18,10 +18,14 @@ imports:
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/magiconair/properties
   version: 51463bfca2576e06c62a8504b5c0f06d61312647
+- name: github.com/mattn/go-runewidth
+  version: 97311d9f7767e3d6f422ea06661bc2c7a19e8a5d
 - name: github.com/mitchellh/go-homedir
   version: b8bc1bf767474819792c23f32d8286a45736f1c6
 - name: github.com/mitchellh/mapstructure
   version: cc8532a8e9a55ea36402aa21efdf403a60d34096
+- name: github.com/nsf/termbox-go
+  version: 7994c181db7761ca3c67a217068cf31826113f5f
 - name: github.com/pelletier/go-buffruneio
   version: c37440a7cf42ac63b919c752ca73a85067e05992
 - name: github.com/pelletier/go-toml

@@ -6,6 +6,8 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"sort"
+	"time"
 
 	"github.com/intelux/insteon/serial"
 )
@@ -28,11 +30,12 @@ func (t *requestToken) Close() error {
 // PowerLineModem represents an Insteon PowerLine Modem device, which can be
 // connected locally or via a TCP socket.
 type PowerLineModem struct {
-	reader io.Reader
-	writer io.Writer
-	closer io.Closer
-	stop   chan struct{}
-	tokens chan *requestToken
+	reader  io.Reader
+	writer  io.Writer
+	closer  io.Closer
+	tokens  chan *requestToken
+	pipe    io.Closer
+	aliases Aliases
 }
 
 // ParseDevice parses a device specifiction string, either as a local file (to
@@ -65,11 +68,15 @@ func ParseDevice(device string) (io.ReadWriteCloser, error) {
 // New create a new PowerLineModem device.
 func New(device io.ReadWriteCloser) *PowerLineModem {
 	return &PowerLineModem{
-		reader: device,
-		writer: device,
-		closer: device,
+		reader:  device,
+		writer:  device,
+		closer:  device,
+		aliases: make(aliases),
 	}
 }
+
+// Aliases returns the associated aliases.
+func (m *PowerLineModem) Aliases() Aliases { return m.aliases }
 
 // SetDebugStream enables debug output on the specified writer.
 func (m *PowerLineModem) SetDebugStream(w io.Writer) {
@@ -92,7 +99,10 @@ func (m *PowerLineModem) SetDebugStream(w io.Writer) {
 // Start the PowerLine Modem.
 //
 // Attempting to start an already running intance has undefined behavior.
-func (m *PowerLineModem) Start() {
+//
+// If a responses channel is passed, it will be fed with all meaningful
+// received responses and closed whenever the read ends.
+func (m *PowerLineModem) Start(responses chan<- Response) {
 	// Create a pipe that can be connected/disconnected.
 	//
 	// Whenever a token becomes active, it will connect the pipe and receive
@@ -102,17 +112,12 @@ func (m *PowerLineModem) Start() {
 	// Copy all reads to the connected pipe.
 	reader := io.TeeReader(m.reader, pipe)
 
-	m.stop = make(chan struct{})
-	go readLoop(m.stop, reader)
+	go readLoop(reader, responses)
 
 	m.tokens = make(chan *requestToken)
 	go dispatchLoop(m.tokens, pipe)
 
-	// Close the pipe on stop.
-	go func() {
-		<-m.stop
-		pipe.Close()
-	}()
+	m.pipe = pipe
 }
 
 // Stop the PowerLine Modem.
@@ -122,8 +127,7 @@ func (m *PowerLineModem) Stop() {
 	close(m.tokens)
 	m.tokens = nil
 
-	close(m.stop)
-	m.stop = nil
+	m.pipe.Close()
 }
 
 // Close the PowerLine Modem.
@@ -132,18 +136,34 @@ func (m *PowerLineModem) Close() {
 	m.closer.Close()
 }
 
-func readLoop(stop <-chan struct{}, r io.Reader) {
-	for {
-		select {
-		case <-stop:
-			return
-		default:
-			msg := make([]byte, 16)
-			_, err := r.Read(msg)
+func readLoop(r io.Reader, responsesCh chan<- Response) {
+	responses := []Response{}
 
-			if err != nil {
-				panic(err)
+	resetResponses := func() {
+		responses = []Response{
+			&StandardMessageReceivedResponse{},
+			&ExtendedMessageReceivedResponse{},
+		}
+	}
+
+	if responsesCh != nil {
+		defer close(responsesCh)
+		resetResponses()
+	}
+
+	for {
+		i, err := UnmarshalResponses(r, responses)
+
+		if err != nil && err != ErrCommandFailure {
+			panic(err)
+		}
+
+		if responsesCh != nil {
+			if err == nil {
+				responsesCh <- responses[i]
 			}
+
+			resetResponses()
 		}
 	}
 }
@@ -193,15 +213,15 @@ func (m *PowerLineModem) Acquire(ctx context.Context) (io.ReadWriteCloser, error
 
 // GetInfo gets information about the PowerLine Modem.
 func (m *PowerLineModem) GetInfo(ctx context.Context) (IMInfo, error) {
-	token, err := m.Acquire(ctx)
+	device, err := m.Acquire(ctx)
 
 	if err != nil {
 		return IMInfo{}, err
 	}
 
-	defer token.Close()
+	defer device.Close()
 
-	err = MarshalRequest(token, GetIMInfoRequest{})
+	err = MarshalRequest(device, GetIMInfoRequest{})
 
 	if err != nil {
 		return IMInfo{}, err
@@ -209,35 +229,246 @@ func (m *PowerLineModem) GetInfo(ctx context.Context) (IMInfo, error) {
 
 	var response GetIMInfoResponse
 
-	if err := UnmarshalResponse(token, &response); err != nil {
+	if err := UnmarshalResponse(device, &response); err != nil {
 		return IMInfo{}, err
 	}
 
 	return response.IMInfo, nil
 }
 
-// On turns a device on.
-func (m *PowerLineModem) On(ctx context.Context, identity Identity) error {
-	token, err := m.Acquire(ctx)
+func (m *PowerLineModem) sendStandardMessage(device io.ReadWriter, identity Identity, commandBytes CommandBytes) (SendStandardOrExtendedMessageResponse, error) {
+	err := MarshalRequest(device, SendStandardOrExtendedMessageRequest{
+		Target:       identity,
+		HopsLeft:     2,
+		MaxHops:      3,
+		Flags:        0,
+		CommandBytes: commandBytes,
+	})
+
+	if err != nil {
+		return SendStandardOrExtendedMessageResponse{}, err
+	}
+
+	var response SendStandardOrExtendedMessageResponse
+
+	if err := UnmarshalResponse(device, &response); err != nil {
+		return SendStandardOrExtendedMessageResponse{}, err
+	}
+
+	return response, nil
+}
+
+func (m *PowerLineModem) sendExtendedMessage(device io.ReadWriter, identity Identity, commandBytes CommandBytes, userData UserData) (SendStandardOrExtendedMessageResponse, error) {
+	err := MarshalRequest(device, SendStandardOrExtendedMessageRequest{
+		Target:       identity,
+		HopsLeft:     2,
+		MaxHops:      3,
+		Flags:        MessageFlagExtended,
+		CommandBytes: commandBytes,
+		UserData:     userData,
+	})
+
+	if err != nil {
+		return SendStandardOrExtendedMessageResponse{}, err
+	}
+
+	var response SendStandardOrExtendedMessageResponse
+
+	if err := UnmarshalResponse(device, &response); err != nil {
+		return SendStandardOrExtendedMessageResponse{}, err
+	}
+
+	return response, nil
+}
+
+// SetLightState sets the state of a lighting device.
+func (m *PowerLineModem) SetLightState(ctx context.Context, identity Identity, state LightState) error {
+	device, err := m.Acquire(ctx)
 
 	if err != nil {
 		return err
 	}
 
-	defer token.Close()
+	defer device.Close()
 
-	// TODO: Implement the standard/extended message logic and replace the types below.
-	err = MarshalRequest(token, GetIMInfoRequest{})
+	_, err = m.sendStandardMessage(device, identity, state.commandBytes())
+	return err
+}
+
+// Beep makes a device beep.
+func (m *PowerLineModem) Beep(ctx context.Context, identity Identity) error {
+	device, err := m.Acquire(ctx)
 
 	if err != nil {
 		return err
 	}
 
-	var response GetIMInfoResponse
+	defer device.Close()
 
-	if err := UnmarshalResponse(token, &response); err != nil {
+	_, err = m.sendStandardMessage(device, identity, CommandBytesBeep)
+	return err
+}
+
+// GetDeviceInfo gets the device info.
+func (m *PowerLineModem) GetDeviceInfo(ctx context.Context, identity Identity) (DeviceInfo, error) {
+	device, err := m.Acquire(ctx)
+
+	if err != nil {
+		return DeviceInfo{}, err
+	}
+
+	defer device.Close()
+
+	_, err = m.sendExtendedMessage(device, identity, CommandBytesGetDeviceInfo, UserData{})
+
+	// The device first sends an ack. We read it but don't really care.
+	var ack StandardMessageReceivedResponse
+
+	if err = UnmarshalResponse(device, &ack); err != nil {
+		return DeviceInfo{}, err
+	}
+
+	// The device then sends information: that we care about !
+	var response ExtendedMessageReceivedResponse
+
+	if err = UnmarshalResponse(device, &response); err != nil {
+		return DeviceInfo{}, err
+	}
+
+	return deviceInfoFromUserData(response.UserData), nil
+}
+
+// SetDeviceRampRate sets the ramp-rate of a device.
+func (m *PowerLineModem) SetDeviceRampRate(ctx context.Context, identity Identity, rampRate time.Duration) error {
+	device, err := m.Acquire(ctx)
+
+	if err != nil {
 		return err
 	}
 
-	return nil
+	defer device.Close()
+
+	userData := UserData{}
+	userData[1] = 0x05
+	userData[2] = rampRateToByte(rampRate)
+
+	_, err = m.sendExtendedMessage(device, identity, CommandBytesSetDeviceInfo, userData)
+
+	return err
+}
+
+// SetDeviceOnLevel sets the on level of a device.
+func (m *PowerLineModem) SetDeviceOnLevel(ctx context.Context, identity Identity, level float64) error {
+	device, err := m.Acquire(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	defer device.Close()
+
+	userData := UserData{}
+	userData[1] = 0x06
+	userData[2] = onLevelToByte(level)
+
+	_, err = m.sendExtendedMessage(device, identity, CommandBytesSetDeviceInfo, userData)
+
+	return err
+}
+
+// SetDeviceLEDBrightness sets the LED brightness of a device.
+func (m *PowerLineModem) SetDeviceLEDBrightness(ctx context.Context, identity Identity, level float64) error {
+	device, err := m.Acquire(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	defer device.Close()
+
+	userData := UserData{}
+	userData[1] = 0x07
+	userData[2] = ledBrightnessToByte(level)
+
+	_, err = m.sendExtendedMessage(device, identity, CommandBytesSetDeviceInfo, userData)
+
+	return err
+}
+
+// SetDeviceX10Address sets the X10 address of a device.
+func (m *PowerLineModem) SetDeviceX10Address(ctx context.Context, identity Identity, x10HouseCode byte, x10Unit byte) error {
+	device, err := m.Acquire(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	defer device.Close()
+
+	userData := UserData{}
+	userData[1] = 0x04
+	userData[2] = x10HouseCode
+	userData[3] = x10Unit
+
+	_, err = m.sendExtendedMessage(device, identity, CommandBytesSetDeviceInfo, userData)
+
+	return err
+}
+
+// GetAllLinkRecords gets all the all-link records.
+func (m *PowerLineModem) GetAllLinkRecords(ctx context.Context) (records AllLinkRecordList, err error) {
+	device, err := m.Acquire(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer device.Close()
+
+	err = MarshalRequest(device, GetFirstAllLinkRecordRequest{})
+
+	if err != nil {
+		return nil, err
+	}
+
+	var response GetFirstAllLinkRecordResponse
+
+	if err = UnmarshalResponse(device, &response); err != nil {
+		if err == ErrCommandFailure {
+			// The database is empty. We return nil.
+			return records, nil
+		}
+
+		return nil, err
+	}
+
+	var allLinkRecordResponse AllLinkRecordResponse
+
+	for {
+		if err = UnmarshalResponse(device, &allLinkRecordResponse); err != nil {
+			return nil, err
+		}
+
+		records = append(records, allLinkRecordResponse.Record)
+
+		err := MarshalRequest(device, GetNextAllLinkRecordRequest{})
+
+		if err != nil {
+			return nil, err
+		}
+
+		var nextResponse GetNextAllLinkRecordResponse
+
+		if err = UnmarshalResponse(device, &nextResponse); err != nil {
+			if err == ErrCommandFailure {
+				break
+			}
+
+			return nil, err
+		}
+	}
+
+	sort.Sort(records)
+
+	return records, nil
 }
