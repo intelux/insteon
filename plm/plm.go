@@ -9,7 +9,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/intelux/insteon/serial"
+	"github.com/jacobsa/go-serial/serial"
 )
 
 type requestToken struct {
@@ -54,7 +54,16 @@ func ParseDevice(device string) (io.ReadWriteCloser, error) {
 			return nil, fmt.Errorf("failed to connect to TCP device: %s", err)
 		}
 	case "":
-		dev, err = serial.Open(url.String())
+		options := serial.OpenOptions{
+			PortName:        url.String(),
+			BaudRate:        19200,
+			DataBits:        8,
+			StopBits:        1,
+			MinimumReadSize: 1,
+		}
+
+		// Open the port.
+		dev, err = serial.Open(options)
 
 		if err != nil {
 			return nil, err

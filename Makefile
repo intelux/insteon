@@ -1,4 +1,4 @@
-modules := serial plm
+modules := plm
 
 ifeq ($(OS),Windows_NT)
 EXT:=.exe

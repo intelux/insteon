@@ -1,5 +1,5 @@
 hash: 5cb1605b0a129761462a4670116a330dce4cc2b407486ca36154a038c3ae162f
-updated: 2017-05-28T15:58:49.216337039-04:00
+updated: 2017-06-01T20:54:13.926635048-04:00
 imports:
 - name: github.com/fsnotify/fsnotify
   version: 4da3e2cfbabc9f751898f250b49f2439785783a1
@@ -16,6 +16,8 @@ imports:
   - json/token
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/jacobsa/go-serial
+  version: 30e16169a71e9998d4d6932c4971d85357263c00
 - name: github.com/magiconair/properties
   version: 51463bfca2576e06c62a8504b5c0f06d61312647
 - name: github.com/mattn/go-runewidth
