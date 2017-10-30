@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/brutella/hc"
 	"github.com/intelux/insteon/plm"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
@@ -28,10 +27,10 @@ import (
 )
 
 var (
-	home             string
-	cfgFile          string
-	powerLineModem   *plm.PowerLineModem
-	homekitTransport hc.Transport
+	home           string
+	cfgFile        string
+	powerLineModem *plm.PowerLineModem
+	monitor        plm.Monitor
 )
 
 // RootCmd represents the base command when called without any subcommands
@@ -68,22 +67,11 @@ Type "ion -h" to discover all the other available commands.`,
 			powerLineModem.SetDebugStream(os.Stderr)
 		}
 
-		var responses chan plm.Response
-
 		if viper.GetBool("monitor") {
-			responses = make(chan plm.Response)
-
-			go func() {
-				for response := range responses {
-					fmt.Println(response)
-
-				}
-			}()
+			monitor = plm.NewPrintMonitor(os.Stderr)
 		}
 
-		powerLineModem.Start(responses)
-
-		return nil
+		return powerLineModem.Start(monitor)
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
 		if powerLineModem != nil {

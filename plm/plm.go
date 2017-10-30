@@ -37,6 +37,7 @@ type PowerLineModem struct {
 	stop    chan struct{}
 	pipe    io.Closer
 	aliases Aliases
+	monitor Monitor
 }
 
 // ParseDevice parses a device specifiction string, either as a local file (to
@@ -112,7 +113,21 @@ func (m *PowerLineModem) SetDebugStream(w io.Writer) {
 //
 // If a responses channel is passed, it will be fed with all meaningful
 // received responses and closed whenever the read ends.
-func (m *PowerLineModem) Start(responses chan<- Response) {
+func (m *PowerLineModem) Start(monitor Monitor) error {
+	var readFunc func(Response)
+
+	m.monitor = monitor
+
+	if m.monitor != nil {
+		if err := m.monitor.Initialize(m); err != nil {
+			return err
+		}
+
+		readFunc = func(res Response) {
+			m.monitor.ResponseReceived(m, res)
+		}
+	}
+
 	// Create a pipe that can be connected/disconnected.
 	//
 	// Whenever a token becomes active, it will connect the pipe and receive
@@ -124,18 +139,24 @@ func (m *PowerLineModem) Start(responses chan<- Response) {
 
 	m.stop = make(chan struct{})
 
-	go readLoop(m.stop, reader, responses)
+	go readLoop(m.stop, reader, readFunc)
 
 	m.tokens = make(chan *requestToken)
 	go dispatchLoop(m.stop, m.tokens, pipe)
 
 	m.pipe = pipe
+
+	return nil
 }
 
 // Stop the PowerLine Modem.
 //
 // Attempting to stop a non-running intance has undefined behavior.
 func (m *PowerLineModem) Stop() {
+	if m.monitor != nil {
+		m.monitor.Finalize(m)
+	}
+
 	close(m.stop)
 	m.stop = nil
 	close(m.tokens)
@@ -158,7 +179,7 @@ func panicStop(stop <-chan struct{}, err error) {
 	}
 }
 
-func readLoop(stop <-chan struct{}, r io.Reader, responsesCh chan<- Response) {
+func readLoop(stop <-chan struct{}, r io.Reader, readFunc func(Response)) {
 	responses := []Response{}
 
 	resetResponses := func() {
@@ -168,8 +189,7 @@ func readLoop(stop <-chan struct{}, r io.Reader, responsesCh chan<- Response) {
 		}
 	}
 
-	if responsesCh != nil {
-		defer close(responsesCh)
+	if readFunc != nil {
 		resetResponses()
 	}
 
@@ -181,9 +201,9 @@ func readLoop(stop <-chan struct{}, r io.Reader, responsesCh chan<- Response) {
 			panicStop(stop, err)
 		}
 
-		if responsesCh != nil {
+		if readFunc != nil {
 			if err == nil {
-				responsesCh <- responses[i]
+				readFunc(responses[i])
 			}
 
 			resetResponses()
@@ -495,49 +515,4 @@ func (m *PowerLineModem) GetAllLinkRecords(ctx context.Context) (records AllLink
 	sort.Sort(records)
 
 	return records, nil
-}
-
-// Monitor the network.
-func (m *PowerLineModem) Monitor(ctx context.Context, monitor Monitor) error {
-	if err := monitor.Initialize(); err != nil {
-		return err
-	}
-
-	defer monitor.Finalize()
-
-	device, err := m.Acquire(ctx)
-
-	if err != nil {
-		return err
-	}
-
-	defer device.Close()
-
-	responses := []Response{}
-
-	resetResponses := func() {
-		responses = []Response{
-			&StandardMessageReceivedResponse{},
-			&ExtendedMessageReceivedResponse{},
-		}
-	}
-
-	resetResponses()
-
-	var i int
-
-	for {
-		if i, err = UnmarshalResponses(device, responses); err != nil {
-			return err
-		}
-
-		switch response := responses[i].(type) {
-		case *StandardMessageReceivedResponse:
-			if lightState := CommandBytesToLightState(response.CommandBytes); lightState != nil {
-				monitor.LightStateUpdated(response.Target, *lightState)
-			}
-		}
-
-		resetResponses()
-	}
 }

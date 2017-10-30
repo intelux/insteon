@@ -3,56 +3,55 @@ package plm
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/brutella/hc"
 	"github.com/brutella/hc/accessory"
+	"github.com/brutella/hc/characteristic"
 )
 
 // homekitMonitor implements a monitor that syncs with Homekit.
 type homekitMonitor struct {
-	Context        context.Context
-	PowerLineModem *PowerLineModem
-	Config         hc.Config
-	Accessories    []*accessory.Accessory
-	transport      hc.Transport
+	Config      hc.Config
+	Accessories []interface{}
+	transport   hc.Transport
 }
 
 // NewHomekitMonitor instantiates a new HomekitMonitor.
-func NewHomekitMonitor(ctx context.Context, plm *PowerLineModem, config hc.Config, accessories []interface{}) Monitor {
-	var rawAccessories []*accessory.Accessory
+func NewHomekitMonitor(config hc.Config, accessories []interface{}) (monitor Monitor) {
+	monitor = &homekitMonitor{
+		Config:      config,
+		Accessories: accessories,
+	}
 
-	for _, acc := range accessories {
+	return
+}
+
+func (m *homekitMonitor) Initialize(plm *PowerLineModem) (err error) {
+	var accessories []*accessory.Accessory
+
+	for _, acc := range m.Accessories {
 		switch acc := acc.(type) {
 		case *accessory.Lightbulb:
-			acc.Lightbulb.Brightness.OnValueRemoteUpdate(func(lvl int) {
-				if identity, err := plm.Aliases().ParseIdentity(acc.Info.Name.Value.(string)); err == nil {
-					fmt.Println(acc.Info.Name.Value.(string), identity, err)
-					plm.SetDeviceOnLevel(ctx, identity, float64(lvl-acc.Lightbulb.Brightness.GetMinValue())/float64(acc.Lightbulb.Brightness.GetMaxValue()))
-				}
-			})
-			acc.Lightbulb.On.OnValueRemoteUpdate(func(on bool) {
-				fmt.Println(acc.Lightbulb.Brightness.GetMinValue(), acc.Lightbulb.Brightness.GetValue(), acc.Lightbulb.Brightness.GetMaxValue())
-			})
-			rawAccessories = append(rawAccessories, acc.Accessory)
+			var identity Identity
+
+			if identity, err = plm.Aliases().ParseIdentity(acc.Info.Name.Value.(string)); err != nil {
+				return
+			}
+
+			acc.Lightbulb.Brightness.OnValueRemoteUpdate(m.MakeBrightnessChangeCallback(plm, identity, acc.Lightbulb.Brightness))
+			acc.Lightbulb.On.OnValueRemoteUpdate(m.MakeOnChangeCallback(plm, identity, acc.Lightbulb.Brightness))
+			accessories = append(accessories, acc.Accessory)
 		}
 	}
 
-	return &homekitMonitor{
-		Context:        ctx,
-		PowerLineModem: plm,
-		Config:         config,
-		Accessories:    rawAccessories,
-	}
-}
-
-func (m *homekitMonitor) Initialize() (err error) {
 	info := accessory.Info{
 		Name:         "Ion",
 		Manufacturer: "Intelux",
 	}
 	mainAccessory := accessory.New(info, accessory.TypeBridge)
 
-	m.transport, err = hc.NewIPTransport(m.Config, mainAccessory, m.Accessories...)
+	m.transport, err = hc.NewIPTransport(m.Config, mainAccessory, accessories...)
 
 	if err != nil {
 		return err
@@ -63,12 +62,58 @@ func (m *homekitMonitor) Initialize() (err error) {
 	return nil
 }
 
-func (m *homekitMonitor) Finalize() error {
+func (m *homekitMonitor) Finalize(*PowerLineModem) error {
 	<-m.transport.Stop()
 
 	return nil
 }
 
-func (m *homekitMonitor) LightStateUpdated(id Identity, state LightState) {
+func (m *homekitMonitor) ResponseReceived(plm *PowerLineModem, response Response) {
+	switch response := response.(type) {
+	case *StandardMessageReceivedResponse:
+		if lightState := CommandBytesToLightState(response.CommandBytes); lightState != nil {
+			m.LightStateUpdated(plm, response.Target, *lightState)
+		}
+	}
+}
+
+func (m *homekitMonitor) LightStateUpdated(plm *PowerLineModem, id Identity, state LightState) {
+	// TODO: Call something like: acc.Lightbulb.On.SetValue(true)
 	fmt.Println(id, state)
+}
+
+func (m *homekitMonitor) MakeOnChangeCallback(plm *PowerLineModem, identity Identity, brightness *characteristic.Brightness) func(bool) {
+	return func(on bool) {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		var state LightState
+
+		if on {
+			state = LightState{
+				OnOff:  LightOn,
+				Level:  float64(brightness.GetValue()-brightness.GetMinValue()) / float64(brightness.GetMaxValue()),
+				Change: ChangeNormal,
+			}
+		} else {
+			state = LightState{
+				OnOff:  LightOff,
+				Level:  float64(brightness.GetValue()-brightness.GetMinValue()) / float64(brightness.GetMaxValue()),
+				Change: ChangeNormal,
+			}
+		}
+		plm.SetLightState(ctx, identity, state)
+	}
+}
+
+func (m *homekitMonitor) MakeBrightnessChangeCallback(plm *PowerLineModem, identity Identity, brightness *characteristic.Brightness) func(int) {
+	return func(lvl int) {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		state := LightState{
+			OnOff:  LightOn,
+			Level:  float64(lvl-brightness.GetMinValue()) / float64(brightness.GetMaxValue()),
+			Change: ChangeNormal,
+		}
+		plm.SetLightState(ctx, identity, state)
+	}
 }

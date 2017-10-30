@@ -14,11 +14,10 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
-	"time"
 
 	"github.com/brutella/hc"
 	"github.com/brutella/hc/accessory"
@@ -31,11 +30,7 @@ var homekitCmd = &cobra.Command{
 	Use:   "homekit",
 	Short: "Start a Homekit emulator for all the known devices.",
 	Long:  "Start a Homekit emulator for all the known devices.",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := context.Background()
-		ctx, cancel := context.WithTimeout(ctx, time.Second)
-		defer cancel()
-
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		var accessories []interface{}
 
 		for deviceAlias, deviceType := range config.Homekit {
@@ -57,11 +52,19 @@ var homekitCmd = &cobra.Command{
 			return err
 		}
 
-		homekitMonitor := plm.NewHomekitMonitor(ctx, powerLineModem, homekitConfig, accessories)
+		monitor = plm.NewHomekitMonitor(homekitConfig, accessories)
 
 		fmt.Printf("Starting Homekit emulation for %d device(s). PIN code is: %s\n", len(config.Homekit), homekitConfig.Pin)
 
-		return powerLineModem.Monitor(ctx, homekitMonitor)
+		return RootCmd.PersistentPreRunE(cmd, args)
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		stop := make(chan os.Signal)
+		signal.Notify(stop, os.Interrupt)
+
+		<-stop
+
+		return nil
 	},
 }
 
