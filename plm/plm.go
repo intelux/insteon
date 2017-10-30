@@ -496,3 +496,48 @@ func (m *PowerLineModem) GetAllLinkRecords(ctx context.Context) (records AllLink
 
 	return records, nil
 }
+
+// Monitor the network.
+func (m *PowerLineModem) Monitor(ctx context.Context, monitor Monitor) error {
+	if err := monitor.Initialize(); err != nil {
+		return err
+	}
+
+	defer monitor.Finalize()
+
+	device, err := m.Acquire(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	defer device.Close()
+
+	responses := []Response{}
+
+	resetResponses := func() {
+		responses = []Response{
+			&StandardMessageReceivedResponse{},
+			&ExtendedMessageReceivedResponse{},
+		}
+	}
+
+	resetResponses()
+
+	var i int
+
+	for {
+		if i, err = UnmarshalResponses(device, responses); err != nil {
+			return err
+		}
+
+		switch response := responses[i].(type) {
+		case *StandardMessageReceivedResponse:
+			if lightState := CommandBytesToLightState(response.CommandBytes); lightState != nil {
+				monitor.LightStateUpdated(response.Target, *lightState)
+			}
+		}
+
+		resetResponses()
+	}
+}

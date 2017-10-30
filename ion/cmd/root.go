@@ -17,13 +17,10 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/brutella/hc"
-	"github.com/brutella/hc/accessory"
 	"github.com/intelux/insteon/plm"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
@@ -73,98 +70,22 @@ Type "ion -h" to discover all the other available commands.`,
 
 		var responses chan plm.Response
 
-		if viper.GetBool("monitor") || viper.GetBool("homekit") {
+		if viper.GetBool("monitor") {
 			responses = make(chan plm.Response)
 
 			go func() {
 				for response := range responses {
-					if viper.GetBool("monitor") {
-						fmt.Println(response)
-					}
+					fmt.Println(response)
 
-					if viper.GetBool("homekit") {
-						// TODO: Read the real events here.
-						fmt.Println("Homekit: ", response)
-					}
 				}
 			}()
 		}
 
 		powerLineModem.Start(responses)
 
-		if viper.GetBool("homekit") {
-			var accessories []*accessory.Accessory
-
-			for deviceAlias, deviceType := range config.Homekit {
-				info := accessory.Info{
-					Name:         deviceAlias,
-					SerialNumber: config.Aliases[deviceAlias],
-				}
-
-				if deviceType == "light" {
-					accessory := accessory.NewLightbulb(info)
-					accessory.Lightbulb.On.OnValueRemoteUpdate(func(on bool) {
-						ctx := context.Background()
-						identity, _ := plm.ParseIdentity(info.SerialNumber)
-						var state plm.LightState
-
-						if on {
-							state = plm.LightState{
-								OnOff:  plm.LightOn,
-								Level:  1,
-								Change: plm.ChangeNormal,
-							}
-						} else {
-							state = plm.LightState{
-								OnOff:  plm.LightOff,
-								Level:  0,
-								Change: plm.ChangeNormal,
-							}
-						}
-						powerLineModem.SetLightState(ctx, identity, state)
-					})
-					accessories = append(accessories, accessory.Accessory)
-				}
-			}
-
-			if len(accessories) == 0 {
-				return fmt.Errorf("no devices are registered as Homekit devices in the configuration")
-			}
-
-			info := accessory.Info{
-				Name: "Ion",
-			}
-			mainAccessory := accessory.New(info, accessory.TypeBridge)
-
-			config := hc.Config{
-				Pin:         "12341234",
-				StoragePath: filepath.Join(home, ".config", "ion", "homekit"),
-			}
-
-			if err = os.MkdirAll(config.StoragePath, 0755); err != nil {
-				return err
-			}
-
-			homekitTransport, err = hc.NewIPTransport(config, mainAccessory, accessories...)
-
-			if err != nil {
-				return err
-			}
-
-			fmt.Printf("Starting Homekit emulation for %d device(s). PIN code is: %s\n", len(accessories), config.Pin)
-
-			go homekitTransport.Start()
-		}
-
 		return nil
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
-		if homekitTransport != nil {
-			fmt.Printf("Stopping Homekit emulation.\n")
-
-			<-homekitTransport.Stop()
-		}
-
 		if powerLineModem != nil {
 			powerLineModem.Close()
 		}
@@ -194,7 +115,6 @@ func init() {
 	RootCmd.PersistentFlags().String("device", "/dev/ttyUSB0", "The device to use that is connected to the PLM. Can be either a serial port or a TCP URL")
 	RootCmd.PersistentFlags().BoolP("debug", "d", false, "Enable debug output. For instance, this displays the RAW bytes as sent and received to/from the PLM.")
 	RootCmd.PersistentFlags().BoolP("monitor", "m", false, "Enable monitoring mode. Any received response will be decoded and printed to the standard output. This differs from `debug` which does not decode the responses.")
-	RootCmd.PersistentFlags().Bool("homekit", false, "Enable Homekit emulation.")
 
 	viper.SetEnvPrefix("ion")
 	viper.BindEnv("device")
@@ -203,8 +123,6 @@ func init() {
 	viper.BindPFlag("debug", RootCmd.PersistentFlags().Lookup("debug"))
 	viper.BindEnv("monitor")
 	viper.BindPFlag("monitor", RootCmd.PersistentFlags().Lookup("monitor"))
-	viper.BindEnv("homekit")
-	viper.BindPFlag("homekit", RootCmd.PersistentFlags().Lookup("homekit"))
 }
 
 // Config describes the configuration file.

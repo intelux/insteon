@@ -52,7 +52,8 @@ var setRampRateCmd = &cobra.Command{
 		}
 
 		ctx := context.Background()
-		ctx, _ = context.WithTimeout(ctx, time.Second)
+		ctx, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
 		err = powerLineModem.SetDeviceRampRate(ctx, identity, rampRate)
 
 		if err != nil {

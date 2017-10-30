@@ -14,11 +14,16 @@
 package cmd
 
 import (
+	"context"
+	"fmt"
 	"os"
-	"os/signal"
+	"path/filepath"
+	"time"
 
+	"github.com/brutella/hc"
+	"github.com/brutella/hc/accessory"
+	"github.com/intelux/insteon/plm"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 // homekitCmd represents the on command
@@ -26,18 +31,37 @@ var homekitCmd = &cobra.Command{
 	Use:   "homekit",
 	Short: "Start a Homekit emulator for all the known devices.",
 	Long:  "Start a Homekit emulator for all the known devices.",
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		viper.Set("homekit", true)
-
-		return RootCmd.PersistentPreRunE(cmd, args)
-	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		stop := make(chan os.Signal)
-		signal.Notify(stop, os.Interrupt)
+		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
 
-		<-stop
+		var accessories []interface{}
 
-		return nil
+		for deviceAlias, deviceType := range config.Homekit {
+			info := accessory.Info{
+				Name: deviceAlias,
+			}
+
+			if deviceType == "light" {
+				accessories = append(accessories, accessory.NewLightbulb(info))
+			}
+		}
+
+		homekitConfig := hc.Config{
+			Pin:         "12341234",
+			StoragePath: filepath.Join(home, ".config", "ion", "homekit"),
+		}
+
+		if err := os.MkdirAll(homekitConfig.StoragePath, 0755); err != nil {
+			return err
+		}
+
+		homekitMonitor := plm.NewHomekitMonitor(ctx, powerLineModem, homekitConfig, accessories)
+
+		fmt.Printf("Starting Homekit emulation for %d device(s). PIN code is: %s\n", len(config.Homekit), homekitConfig.Pin)
+
+		return powerLineModem.Monitor(ctx, homekitMonitor)
 	},
 }
 

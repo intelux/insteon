@@ -53,7 +53,8 @@ var setOnLevelCmd = &cobra.Command{
 		}
 
 		ctx := context.Background()
-		ctx, _ = context.WithTimeout(ctx, time.Second)
+		ctx, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
 		err = powerLineModem.SetDeviceOnLevel(ctx, identity, level)
 
 		if err != nil {

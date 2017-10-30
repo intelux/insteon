@@ -359,6 +359,69 @@ func (s LightState) commandBytes() CommandBytes {
 	return CommandBytes([2]byte{0x13, levelByte})
 }
 
+// CommandBytesToLightState get light state from command bytes.
+func CommandBytesToLightState(bytes CommandBytes) (state *LightState) {
+	switch bytes[0] {
+	case 0x11:
+		state = &LightState{
+			OnOff:  LightOn,
+			Change: ChangeNormal,
+			Level:  byteToOnLevel(bytes[1]),
+		}
+	case 0x12:
+		state = &LightState{
+			OnOff:  LightOn,
+			Change: ChangeInstant,
+			Level:  byteToOnLevel(bytes[1]),
+		}
+	case 0x13:
+		state = &LightState{
+			OnOff:  LightOff,
+			Change: ChangeNormal,
+			Level:  byteToOnLevel(bytes[1]),
+		}
+	case 0x14:
+		state = &LightState{
+			OnOff:  LightOff,
+			Change: ChangeInstant,
+			Level:  byteToOnLevel(bytes[1]),
+		}
+	case 0x15:
+		state = &LightState{
+			OnOff:  LightOn,
+			Change: ChangeStep,
+			Level:  0,
+		}
+	case 0x16:
+		state = &LightState{
+			OnOff:  LightOff,
+			Change: ChangeStep,
+			Level:  0,
+		}
+	case 0x17:
+		if bytes[1] == 0x00 {
+			state = &LightState{
+				OnOff:  LightOff,
+				Change: ChangeStart,
+				Level:  0,
+			}
+		} else {
+			state = &LightState{
+				OnOff:  LightOn,
+				Change: ChangeStart,
+				Level:  0,
+			}
+		}
+	case 0x18:
+		state = &LightState{
+			OnOff:  LightOn,
+			Change: ChangeStop,
+			Level:  0,
+		}
+	}
+	return
+}
+
 // MessageFlags represents the message flags.
 type MessageFlags byte
 
