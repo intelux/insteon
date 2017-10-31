@@ -30,15 +30,16 @@ var homekitCmd = &cobra.Command{
 	Use:   "homekit",
 	Short: "Start a Homekit emulator for all the known devices.",
 	Long:  "Start a Homekit emulator for all the known devices.",
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		var accessories []interface{}
 
-		for deviceAlias, deviceType := range config.Homekit {
+		for deviceIdentity, device := range config.Homekit {
 			info := accessory.Info{
-				Name: deviceAlias,
+				Name:         device.Name,
+				SerialNumber: deviceIdentity,
 			}
 
-			if deviceType == "light" {
+			if device.Type == "light" {
 				accessories = append(accessories, accessory.NewLightbulb(info))
 			}
 		}
@@ -52,19 +53,19 @@ var homekitCmd = &cobra.Command{
 			return err
 		}
 
-		monitor = plm.NewHomekitMonitor(homekitConfig, accessories)
+		homekit := plm.NewHomekit(homekitConfig, accessories)
 
 		fmt.Printf("Starting Homekit emulation for %d device(s). PIN code is: %s\n", len(config.Homekit), homekitConfig.Pin)
 
-		return RootCmd.PersistentPreRunE(cmd, args)
-	},
-	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := homekit.Initialize(powerLineModem); err != nil {
+			return err
+		}
+
 		stop := make(chan os.Signal)
 		signal.Notify(stop, os.Interrupt)
 
 		<-stop
-
-		return nil
+		return homekit.Finalize(powerLineModem)
 	},
 }
 

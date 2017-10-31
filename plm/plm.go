@@ -119,10 +119,6 @@ func (m *PowerLineModem) Start(monitor Monitor) error {
 	m.monitor = monitor
 
 	if m.monitor != nil {
-		if err := m.monitor.Initialize(m); err != nil {
-			return err
-		}
-
 		readFunc = func(res Response) {
 			m.monitor.ResponseReceived(m, res)
 		}
@@ -153,10 +149,6 @@ func (m *PowerLineModem) Start(monitor Monitor) error {
 //
 // Attempting to stop a non-running intance has undefined behavior.
 func (m *PowerLineModem) Stop() {
-	if m.monitor != nil {
-		m.monitor.Finalize(m)
-	}
-
 	close(m.stop)
 	m.stop = nil
 	close(m.tokens)
@@ -515,4 +507,19 @@ func (m *PowerLineModem) GetAllLinkRecords(ctx context.Context) (records AllLink
 	sort.Sort(records)
 
 	return records, nil
+}
+
+// GetDeviceStatus gets the on level of a device.
+func (m *PowerLineModem) GetDeviceStatus(ctx context.Context, identity Identity) (float64, error) {
+	device, err := m.Acquire(ctx)
+
+	if err != nil {
+		return 0, err
+	}
+
+	defer device.Close()
+
+	response, err := m.sendStandardMessage(device, identity, CommandBytesStatusRequest)
+
+	return byteToOnLevel(response.CommandBytes[1]), err
 }

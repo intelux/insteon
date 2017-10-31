@@ -113,10 +113,16 @@ func init() {
 	viper.BindPFlag("monitor", RootCmd.PersistentFlags().Lookup("monitor"))
 }
 
+// HomekitConfig represents a configuration for a Homekit device.
+type HomekitConfig struct {
+	Type string
+	Name string
+}
+
 // Config describes the configuration file.
 type Config struct {
 	Aliases map[string]string
-	Homekit map[string]string
+	Homekit map[string]HomekitConfig
 }
 
 var config Config

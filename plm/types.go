@@ -593,6 +593,9 @@ var (
 	// CommandBytesGetDeviceInfo is used to get the device information.
 	CommandBytesGetDeviceInfo = CommandBytes{0x2e, 0x00}
 
+	// CommandBytesStatusRequest is used to get the device status.
+	CommandBytesStatusRequest = CommandBytes{0x19, 0x00}
+
 	// CommandBytesSetDeviceInfo is used to set the device information.
 	CommandBytesSetDeviceInfo = CommandBytes{0x2e, 0x00}
 )

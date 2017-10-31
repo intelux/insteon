@@ -7,8 +7,6 @@ import (
 
 // Monitor represents a type that can listen on device changes.
 type Monitor interface {
-	Initialize(*PowerLineModem) error
-	Finalize(*PowerLineModem) error
 	ResponseReceived(*PowerLineModem, Response)
 }
 
@@ -23,14 +21,6 @@ func NewPrintMonitor(w io.Writer) Monitor {
 	}
 }
 
-func (printMonitor) Initialize(*PowerLineModem) error { return nil }
-func (m printMonitor) Finalize(*PowerLineModem) error {
-	if closer, ok := m.Writer.(io.Closer); ok {
-		return closer.Close()
-	}
-
-	return nil
-}
 func (m printMonitor) ResponseReceived(plm *PowerLineModem, res Response) {
 	fmt.Fprintf(m.Writer, "%s\n", res)
 }
