@@ -519,7 +519,15 @@ func (m *PowerLineModem) GetDeviceStatus(ctx context.Context, identity Identity)
 
 	defer device.Close()
 
-	response, err := m.sendStandardMessage(device, identity, CommandBytesStatusRequest)
+	if _, err = m.sendStandardMessage(device, identity, CommandBytesStatusRequest); err != nil {
+		return 0, err
+	}
 
-	return byteToOnLevel(response.CommandBytes[1]), err
+	var ack StandardMessageReceivedResponse
+
+	if err = UnmarshalResponse(device, &ack); err != nil {
+		return 0, err
+	}
+
+	return byteToOnLevel(ack.CommandBytes[1]), err
 }
