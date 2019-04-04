@@ -1,6 +1,7 @@
 module github.com/intelux/insteon
 
 require (
+	github.com/BurntSushi/toml v0.3.1 // indirect
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 // indirect
 	github.com/brutella/dnssd v0.0.0-20180519095852-a1eecd10aafc // indirect
 	github.com/brutella/hc v0.1.1-0.20180507062808-5b6df487276b
@@ -22,6 +23,7 @@ require (
 	github.com/spf13/jwalterweatherman v0.0.0-20180814060501-14d3d4c51834 // indirect
 	github.com/spf13/pflag v1.0.2 // indirect
 	github.com/spf13/viper v1.1.0
+	github.com/stretchr/testify v1.3.0 // indirect
 	github.com/tadglines/go-pkgs v0.0.0-20140924210655-1f86682992f1 // indirect
 	golang.org/x/crypto v0.0.0-20180820150726-614d502a4dac // indirect
 	golang.org/x/net v0.0.0-20180824152047-4bcd98cce591 // indirect
