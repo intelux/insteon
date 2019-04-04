@@ -21,23 +21,33 @@ func (i Identity) AsGroup() Group {
 	return Group(i[2])
 }
 
-// ParseIdentity parses an identity.
-func ParseIdentity(s string) (Identity, error) {
-	var identity Identity
-
-	b, err := hex.DecodeString(s)
+// UnmarshalText implements text unmarshalling.
+func (i *Identity) UnmarshalText(b []byte) error {
+	data, err := hex.DecodeString(string(b))
 
 	if err != nil {
-		return identity, err
+		return fmt.Errorf("failed to hex-decode string: %s", err)
 	}
 
-	if len(b) != 3 {
-		return identity, fmt.Errorf("invalid identity (%s)", s)
+	if len(data) != 3 {
+		return fmt.Errorf("invalid size for identity: expected 3 but got %d byte(s)", len(data))
 	}
 
-	copy(identity[:], b)
+	copy((*i)[:], data)
 
-	return identity, nil
+	return nil
+}
+
+// MarshalText implements text marshaling.
+func (i Identity) MarshalText() ([]byte, error) {
+	return []byte(i.String()), nil
+}
+
+// ParseIdentity parses an identity.
+func ParseIdentity(s string) (identity Identity, err error) {
+	err = identity.UnmarshalText([]byte(s))
+
+	return
 }
 
 // MainCategory represents a main category.
