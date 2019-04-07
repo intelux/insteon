@@ -61,16 +61,17 @@ var onCmd = &cobra.Command{
 		}
 
 		ctx := context.Background()
-		ctx, _ = context.WithTimeout(ctx, time.Second)
+		ctx, cancel := context.WithTimeout(ctx, time.Second)
+
+		defer cancel()
 
 		state := plm.LightState{
 			OnOff:  plm.LightOn,
 			Change: change,
 			Level:  onLevel,
 		}
-		err = powerLineModem.SetLightState(ctx, identity, state)
 
-		if err != nil {
+		if err = powerLineModem.SetLightState(ctx, identity, state); err != nil {
 			return err
 		}
 

@@ -60,7 +60,10 @@ var offCmd = &cobra.Command{
 		}
 
 		ctx := context.Background()
-		ctx, _ = context.WithTimeout(ctx, time.Second)
+		ctx, cancel := context.WithTimeout(ctx, time.Second)
+
+		defer cancel()
+
 		state := plm.LightState{
 			OnOff:  plm.LightOff,
 			Change: change,
