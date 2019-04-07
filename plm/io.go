@@ -48,7 +48,9 @@ func (p *ConnectedPipe) Connect(w io.Writer) error {
 	r := p.reader
 	p.mutex.Unlock()
 
+	fmt.Println("copying...")
 	_, err := io.Copy(w, r)
+	fmt.Println("copying done", err)
 
 	p.Close()
 

@@ -205,8 +205,10 @@ func readLoop(stop <-chan struct{}, r io.Reader, readFunc func(Response)) {
 
 func dispatchLoop(stop <-chan struct{}, tokens <-chan *requestToken, c Connecter) {
 	for token := range tokens {
+		fmt.Println("dispatched one token")
 		close(token.ready)
 		err := c.Connect(token.pipeWriter)
+		fmt.Println("token connect", err)
 
 		// An io.ErrClosedPipe means either the Connecter or the underlying
 		// Writer was closed, which are both expected.
@@ -237,11 +239,14 @@ func (m *PowerLineModem) createToken() *requestToken {
 // It is the responsibility of the caller to close the returned instance.
 func (m *PowerLineModem) Acquire(ctx context.Context) (io.ReadWriteCloser, error) {
 	token := m.createToken()
+	fmt.Println("acquisition started...")
 
 	select {
 	case <-token.ready:
+		fmt.Println("acquisition completed")
 		return token, nil
 	case <-ctx.Done():
+		fmt.Println("acquisition expired")
 		token.Close()
 		return nil, ctx.Err()
 	}
