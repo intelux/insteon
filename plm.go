@@ -1,6 +1,7 @@
 package insteon
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -94,4 +95,9 @@ func NewPowerLineModem(device string) (*PowerLineModem, error) {
 	default:
 		return NewLocalPowerLineModem(url.String())
 	}
+}
+
+// GetIMInfo gets information about the PowerLine Modem.
+func (m *PowerLineModem) GetIMInfo(ctx context.Context) (*IMInfo, error) {
+	return nil, nil
 }

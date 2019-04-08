@@ -8,48 +8,6 @@ import (
 	"time"
 )
 
-// Identity is an Insteon identity.
-type Identity [3]byte
-
-func (i Identity) String() string {
-	return hex.EncodeToString(i[:])
-}
-
-// AsGroup returns the identity as a group. Result is only valid if the
-// identity is the target of a broadcast message.
-func (i Identity) AsGroup() Group {
-	return Group(i[2])
-}
-
-// UnmarshalText implements text unmarshalling.
-func (i *Identity) UnmarshalText(b []byte) error {
-	data, err := hex.DecodeString(string(b))
-
-	if err != nil {
-		return fmt.Errorf("failed to hex-decode string: %s", err)
-	}
-
-	if len(data) != 3 {
-		return fmt.Errorf("invalid size for identity: expected 3 but got %d byte(s)", len(data))
-	}
-
-	copy((*i)[:], data)
-
-	return nil
-}
-
-// MarshalText implements text marshaling.
-func (i Identity) MarshalText() ([]byte, error) {
-	return []byte(i.String()), nil
-}
-
-// ParseIdentity parses an identity.
-func ParseIdentity(s string) (identity Identity, err error) {
-	err = identity.UnmarshalText([]byte(s))
-
-	return
-}
-
 // MainCategory represents a main category.
 type MainCategory uint8
 
@@ -168,13 +126,6 @@ func (c Category) String() string {
 	}
 
 	return "Unknown category"
-}
-
-// IMInfo contains information about the PLM.
-type IMInfo struct {
-	Identity        Identity
-	Category        Category
-	FirmwareVersion uint8
 }
 
 // DeviceInfo contains information about a device.
@@ -448,9 +399,6 @@ const (
 
 // AllLinkRecordFlags represents an all-link record flags.
 type AllLinkRecordFlags byte
-
-// Group represents a group.
-type Group byte
 
 // CommandBytes represent a pair of command bytes.
 type CommandBytes [2]byte
