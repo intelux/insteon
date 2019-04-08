@@ -1,12 +1,14 @@
 package insteon
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
 	"net"
 	"net/url"
 	"os"
+	"sync"
 
 	"github.com/jacobsa/go-serial/serial"
 )
@@ -17,6 +19,9 @@ type PowerLineModem struct {
 	//
 	// Can be a local serial port or a remote one (TCP).
 	Device io.ReadWriteCloser
+
+	once     sync.Once
+	routines chan func()
 }
 
 // DefaultPowerLineModem is the default PowerLine Modem instance.
@@ -98,6 +103,76 @@ func NewPowerLineModem(device string) (*PowerLineModem, error) {
 }
 
 // GetIMInfo gets information about the PowerLine Modem.
-func (m *PowerLineModem) GetIMInfo(ctx context.Context) (*IMInfo, error) {
-	return nil, nil
+func (m *PowerLineModem) GetIMInfo(ctx context.Context) (imInfo *IMInfo, err error) {
+	m.init()
+
+	if err = m.execute(ctx, func() error {
+		if err := m.writeMessage(cmdGetIMInfo, nil); err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return
+}
+
+func (m *PowerLineModem) init() {
+	m.once.Do(func() {
+		m.routines = make(chan func(), 10)
+
+		go func() {
+			for routine := range m.routines {
+				routine()
+			}
+		}()
+	})
+}
+
+func (m *PowerLineModem) execute(ctx context.Context, fn func() error) error {
+	ch := make(chan error, 1)
+
+	// Wait until we can push the routine.
+	select {
+	case m.routines <- func() {
+		ch <- fn()
+	}:
+		select {
+		case err := <-ch:
+			return err
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+const (
+	// messageStart is the marker at the beginning of commands.
+	messageStart byte = 0x02
+	// messageAck is returned as an acknowledgment.
+	messageAck byte = 0x06
+	// messageNak is returned as an non-acknowledgment.
+	messageNak byte = 0x15
+)
+
+func (m *PowerLineModem) writeMessage(commandCode CommandCode, msg interface{}) error {
+	// Make sure we send it all at once. Not that it is mandatory, but it's
+	// easier to debug.
+	bw := bufio.NewWriter(m.Device)
+	defer bw.Flush()
+
+	_, err := bw.Write([]byte{
+		messageStart,
+		byte(commandCode),
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return NewMessageEncoder(bw).Encode(msg)
 }
