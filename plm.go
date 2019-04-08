@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"os"
 
 	"github.com/jacobsa/go-serial/serial"
 )
@@ -39,10 +40,18 @@ func NewLocalPowerLineModem(serialPort string) (*PowerLineModem, error) {
 	}
 
 	// Open the port.
-	device, err := serial.Open(options)
+	var device io.ReadWriteCloser
+	var err error
 
-	if err != nil {
+	if device, err = serial.Open(options); err != nil {
 		return nil, fmt.Errorf("opening local serial port: %s", err)
+	}
+
+	if PowerLineModemDebug {
+		device = debugReadWriteCloser{
+			ReadWriteCloser: device,
+			DebugWriter:     os.Stderr,
+		}
 	}
 
 	return &PowerLineModem{
@@ -52,10 +61,18 @@ func NewLocalPowerLineModem(serialPort string) (*PowerLineModem, error) {
 
 // NewRemotePowerLineModem instantiates a new remote PowerLine Modem.
 func NewRemotePowerLineModem(host string) (*PowerLineModem, error) {
-	device, err := net.Dial("tcp", host)
+	var device io.ReadWriteCloser
+	var err error
 
-	if err != nil {
+	if device, err = net.Dial("tcp", host); err != nil {
 		return nil, fmt.Errorf("opening remote serial port: %s", err)
+	}
+
+	if PowerLineModemDebug {
+		device = debugReadWriteCloser{
+			ReadWriteCloser: device,
+			DebugWriter:     os.Stderr,
+		}
 	}
 
 	return &PowerLineModem{
