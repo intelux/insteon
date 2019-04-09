@@ -2,6 +2,7 @@ package insteon
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/jacobsa/go-serial/serial"
 )
@@ -21,7 +23,11 @@ type PowerLineModem struct {
 	Device io.ReadWriteCloser
 
 	once     sync.Once
+	ctx      context.Context
+	cancel   func()
 	routines chan func()
+	lock     sync.Mutex
+	buffer   *bytes.Buffer
 }
 
 // DefaultPowerLineModem is the default PowerLine Modem instance.
@@ -106,10 +112,12 @@ func NewPowerLineModem(device string) (*PowerLineModem, error) {
 func (m *PowerLineModem) GetIMInfo(ctx context.Context) (imInfo *IMInfo, err error) {
 	m.init()
 
-	if err = m.execute(ctx, func() error {
+	if err = m.execute(ctx, func(ctx context.Context) error {
 		if err := m.writeMessage(cmdGetIMInfo, nil); err != nil {
 			return err
 		}
+
+		time.Sleep(time.Second)
 
 		return nil
 	}); err != nil {
@@ -121,7 +129,11 @@ func (m *PowerLineModem) GetIMInfo(ctx context.Context) (imInfo *IMInfo, err err
 
 func (m *PowerLineModem) init() {
 	m.once.Do(func() {
-		m.routines = make(chan func(), 10)
+		m.ctx, m.cancel = context.WithCancel(context.Background())
+		m.routines = make(chan func())
+		m.buffer = &bytes.Buffer{}
+
+		go m.readLoop(m.ctx)
 
 		go func() {
 			for routine := range m.routines {
@@ -131,13 +143,22 @@ func (m *PowerLineModem) init() {
 	})
 }
 
-func (m *PowerLineModem) execute(ctx context.Context, fn func() error) error {
+func (m *PowerLineModem) execute(ctx context.Context, fn func(context.Context) error) error {
 	ch := make(chan error, 1)
+
+	ctx, cancel := context.WithCancel(ctx)
+
+	defer cancel()
+
+	go func() {
+		<-m.ctx.Done()
+		cancel()
+	}()
 
 	// Wait until we can push the routine.
 	select {
 	case m.routines <- func() {
-		ch <- fn()
+		ch <- fn(ctx)
 	}:
 		select {
 		case err := <-ch:
@@ -147,6 +168,22 @@ func (m *PowerLineModem) execute(ctx context.Context, fn func() error) error {
 		}
 	case <-ctx.Done():
 		return ctx.Err()
+	}
+}
+
+func (m *PowerLineModem) readLoop(ctx context.Context) {
+	b := make([]byte, 1024)
+
+	for {
+		n, err := m.Device.Read(b)
+
+		if err != nil {
+			return
+		}
+
+		m.lock.Lock()
+		m.buffer.Write(b[:n])
+		m.lock.Unlock()
 	}
 }
 
