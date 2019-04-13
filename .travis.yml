@@ -5,7 +5,7 @@ os:
   - osx
 
 go:
-  - 1.11
+  - 1.12
 
 addons:
   apt:
@@ -16,11 +16,8 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install socat; fi
 
-install:
-  - go get -u github.com/golang/lint/golint
-
 script:
-  make
+  go test ./...
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
