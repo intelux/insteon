@@ -48,6 +48,22 @@ type Category struct {
 	subCategory  SubCategory
 }
 
+// UnmarshalBinary -
+func (c *Category) UnmarshalBinary(b []byte) error {
+	c.mainCategory = MainCategory(b[0])
+	c.subCategory = SubCategory(b[1])
+
+	return nil
+}
+
+// MarshalBinary -
+func (c Category) MarshalBinary() ([]byte, error) {
+	return []byte{
+		byte(c.mainCategory),
+		byte(c.subCategory),
+	}, nil
+}
+
 func (c Category) String() string {
 	switch c.mainCategory {
 	case generalizedControllers:

@@ -1,16 +1,14 @@
 package insteon
 
 import (
-	"bufio"
-	"bytes"
 	"context"
+	"encoding"
 	"fmt"
 	"io"
 	"net"
 	"net/url"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/jacobsa/go-serial/serial"
 )
@@ -22,12 +20,11 @@ type PowerLineModem struct {
 	// Can be a local serial port or a remote one (TCP).
 	Device io.ReadWriteCloser
 
-	once     sync.Once
-	ctx      context.Context
-	cancel   func()
-	routines chan func()
-	lock     sync.Mutex
-	buffer   *bytes.Buffer
+	once            sync.Once
+	ctx             context.Context
+	cancel          func()
+	routines        chan func()
+	incomingPackets chan *packet
 }
 
 // DefaultPowerLineModem is the default PowerLine Modem instance.
@@ -112,17 +109,11 @@ func NewPowerLineModem(device string) (*PowerLineModem, error) {
 func (m *PowerLineModem) GetIMInfo(ctx context.Context) (imInfo *IMInfo, err error) {
 	m.init()
 
-	if err = m.execute(ctx, func(ctx context.Context) error {
-		if err := m.writeMessage(cmdGetIMInfo, nil); err != nil {
-			return err
-		}
+	err = m.execute(ctx, func(ctx context.Context) error {
+		imInfo = &IMInfo{}
 
-		time.Sleep(time.Second)
-
-		return nil
-	}); err != nil {
-		return nil, err
-	}
+		return m.transfer(ctx, &packet{CommandCode: cmdGetIMInfo}, imInfo)
+	})
 
 	return
 }
@@ -131,7 +122,7 @@ func (m *PowerLineModem) init() {
 	m.once.Do(func() {
 		m.ctx, m.cancel = context.WithCancel(context.Background())
 		m.routines = make(chan func())
-		m.buffer = &bytes.Buffer{}
+		m.incomingPackets = make(chan *packet)
 
 		go m.readLoop(m.ctx)
 
@@ -172,18 +163,20 @@ func (m *PowerLineModem) execute(ctx context.Context, fn func(context.Context) e
 }
 
 func (m *PowerLineModem) readLoop(ctx context.Context) {
-	b := make([]byte, 1024)
+	r := newPacketReader(m.Device)
 
 	for {
-		n, err := m.Device.Read(b)
+		p, err := r.ReadPacket()
 
 		if err != nil {
 			return
 		}
 
-		m.lock.Lock()
-		m.buffer.Write(b[:n])
-		m.lock.Unlock()
+		select {
+		case m.incomingPackets <- p:
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 
@@ -196,20 +189,35 @@ const (
 	messageNak byte = 0x15
 )
 
-func (m *PowerLineModem) writeMessage(commandCode CommandCode, msg interface{}) error {
-	// Make sure we send it all at once. Not that it is mandatory, but it's
-	// easier to debug.
-	bw := bufio.NewWriter(m.Device)
-	defer bw.Flush()
+func (m *PowerLineModem) readPacket(ctx context.Context, commandCode CommandCode) (*packet, error) {
+	for {
+		select {
+		case packet := <-m.incomingPackets:
+			if packet.CommandCode == commandCode {
+				return packet, nil
+			}
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
 
-	_, err := bw.Write([]byte{
-		messageStart,
-		byte(commandCode),
-	})
+func (m *PowerLineModem) writePacket(p *packet) error {
+	w := newPacketWriter(m.Device)
+
+	return w.WritePacket(p)
+}
+
+func (m *PowerLineModem) transfer(ctx context.Context, p *packet, result encoding.BinaryUnmarshaler) error {
+	if err := m.writePacket(p); err != nil {
+		return err
+	}
+
+	p, err := m.readPacket(ctx, p.CommandCode)
 
 	if err != nil {
 		return err
 	}
 
-	return NewMessageEncoder(bw).Encode(msg)
+	return result.UnmarshalBinary(p.Payload)
 }
