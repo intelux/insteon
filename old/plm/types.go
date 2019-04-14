@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
-	"math"
 	"time"
 )
 
@@ -103,18 +102,6 @@ func rampRateToByte(duration time.Duration) byte {
 	return value
 }
 
-func clampLevel(v float64) float64 {
-	return math.Max(0, math.Min(1, v))
-}
-
-func byteToOnLevel(b byte) float64 {
-	return float64(b) / 0xff
-}
-
-func onLevelToByte(level float64) byte {
-	return byte(clampLevel(level) * 0xff)
-}
-
 func byteToLEDBrightness(b byte) float64 {
 	return float64(b&0x7f) / 0x7f
 }
@@ -122,160 +109,6 @@ func byteToLEDBrightness(b byte) float64 {
 func ledBrightnessToByte(level float64) byte {
 	return byte(clampLevel(level) * 0x7f)
 }
-
-// LightOnOff represents a light on/off state.
-type LightOnOff bool
-
-const (
-	// LightOn indicates an on light.
-	LightOn LightOnOff = true
-	// LightOff indicates an off light.
-	LightOff LightOnOff = false
-)
-
-func (s LightOnOff) String() string {
-	if s {
-		return "on"
-	}
-
-	return "off"
-}
-
-// LightStateChange represents a light state change.
-type LightStateChange int
-
-const (
-	// ChangeNormal indicates that the light state must change as if a single
-	// press had been done.
-	ChangeNormal LightStateChange = iota
-	// ChangeInstant indicates that the light state must change instantly, as
-	// if a quick double-press had been done.
-	ChangeInstant
-	// ChangeStep indicates that the light state must change for one step up or
-	// down.
-	ChangeStep
-	// ChangeStart indicates that the light state must start changing until a
-	// ChangeStop change is set.
-	ChangeStart
-	// ChangeStop stops a light change started with ChangeStart.
-	ChangeStop
-)
-
-// LightState represents a light state.
-type LightState struct {
-	OnOff  LightOnOff
-	Change LightStateChange
-	Level  float64
-}
-
-func (s LightState) commandBytes() CommandBytes {
-	levelByte := onLevelToByte(s.Level)
-
-	if s.OnOff == LightOn {
-		switch s.Change {
-		case ChangeInstant:
-			return CommandBytes([2]byte{0x12, levelByte})
-		case ChangeStep:
-			return CommandBytes([2]byte{0x15, 0})
-		case ChangeStart:
-			return CommandBytes([2]byte{0x17, 0x01})
-		case ChangeStop:
-			return CommandBytes([2]byte{0x18, 0x00})
-		}
-
-		return CommandBytes([2]byte{0x11, levelByte})
-	}
-
-	switch s.Change {
-	case ChangeInstant:
-		return CommandBytes([2]byte{0x14, levelByte})
-	case ChangeStep:
-		return CommandBytes([2]byte{0x16, 0})
-	case ChangeStart:
-		return CommandBytes([2]byte{0x17, 0x00})
-	case ChangeStop:
-		return CommandBytes([2]byte{0x18, 0x00})
-	}
-
-	return CommandBytes([2]byte{0x13, levelByte})
-}
-
-// CommandBytesToLightState get light state from command bytes.
-func CommandBytesToLightState(bytes CommandBytes) (state *LightState) {
-	switch bytes[0] {
-	case 0x11:
-		state = &LightState{
-			OnOff:  LightOn,
-			Change: ChangeNormal,
-			Level:  byteToOnLevel(bytes[1]),
-		}
-	case 0x12:
-		state = &LightState{
-			OnOff:  LightOn,
-			Change: ChangeInstant,
-			Level:  byteToOnLevel(bytes[1]),
-		}
-	case 0x13:
-		state = &LightState{
-			OnOff:  LightOff,
-			Change: ChangeNormal,
-			Level:  byteToOnLevel(bytes[1]),
-		}
-	case 0x14:
-		state = &LightState{
-			OnOff:  LightOff,
-			Change: ChangeInstant,
-			Level:  byteToOnLevel(bytes[1]),
-		}
-	case 0x15:
-		state = &LightState{
-			OnOff:  LightOn,
-			Change: ChangeStep,
-			Level:  0,
-		}
-	case 0x16:
-		state = &LightState{
-			OnOff:  LightOff,
-			Change: ChangeStep,
-			Level:  0,
-		}
-	case 0x17:
-		if bytes[1] == 0x00 {
-			state = &LightState{
-				OnOff:  LightOff,
-				Change: ChangeStart,
-				Level:  0,
-			}
-		} else {
-			state = &LightState{
-				OnOff:  LightOn,
-				Change: ChangeStart,
-				Level:  0,
-			}
-		}
-	case 0x18:
-		state = &LightState{
-			OnOff:  LightOn,
-			Change: ChangeStop,
-			Level:  0,
-		}
-	}
-	return
-}
-
-// MessageFlags represents the message flags.
-type MessageFlags byte
-
-const (
-	// MessageFlagExtended indicates extended messages.
-	MessageFlagExtended MessageFlags = 0x10
-	// MessageFlagAck indicates an acquitement message.
-	MessageFlagAck MessageFlags = 0x20
-	// MessageFlagAllLink indicates an all-link message.
-	MessageFlagAllLink MessageFlags = 0x40
-	// MessageFlagBroadcast indicates a broadcast message.
-	MessageFlagBroadcast MessageFlags = 0x80
-)
 
 // AllLinkRecordFlags represents an all-link record flags.
 type AllLinkRecordFlags byte
@@ -437,16 +270,3 @@ var (
 	// CommandBytesSetDeviceInfo is used to set the device information.
 	CommandBytesSetDeviceInfo = CommandBytes{0x2e, 0x00}
 )
-
-func checksum(commandBytes CommandBytes, userData UserData) byte {
-	var checksum byte
-
-	for _, b := range commandBytes {
-		checksum += b
-	}
-	for _, b := range userData {
-		checksum += b
-	}
-
-	return ((0xff ^ checksum) + 1) & 0xff
-}

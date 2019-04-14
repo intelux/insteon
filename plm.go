@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/jacobsa/go-serial/serial"
 )
@@ -112,7 +113,21 @@ func (m *PowerLineModem) GetIMInfo(ctx context.Context) (imInfo *IMInfo, err err
 	err = m.execute(ctx, func(ctx context.Context) error {
 		imInfo = &IMInfo{}
 
-		return m.transfer(ctx, &packet{CommandCode: cmdGetIMInfo}, imInfo)
+		return m.roundtrip(ctx, &packet{CommandCode: cmdGetIMInfo}, imInfo)
+	})
+
+	return
+}
+
+// SetLightState sets the state of a lighting device.
+func (m *PowerLineModem) SetLightState(ctx context.Context, identity ID, state LightState) (err error) {
+	m.init()
+
+	err = m.execute(ctx, func(ctx context.Context) error {
+		msg := newMessage(identity, state.asCommandBytes())
+		_, err := m.messageRoundtrip(ctx, msg)
+
+		return err
 	})
 
 	return
@@ -208,16 +223,53 @@ func (m *PowerLineModem) writePacket(p *packet) error {
 	return w.WritePacket(p)
 }
 
-func (m *PowerLineModem) transfer(ctx context.Context, p *packet, result encoding.BinaryUnmarshaler) error {
-	if err := m.writePacket(p); err != nil {
-		return err
-	}
-
-	p, err := m.readPacket(ctx, p.CommandCode)
+func (m *PowerLineModem) messageRoundtrip(ctx context.Context, msg *Message) (*Message, error) {
+	payload, err := msg.MarshalBinary()
 
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("marshalling message: %s", err)
 	}
 
-	return result.UnmarshalBinary(p.Payload)
+	p := &packet{
+		CommandCode: cmdSendStandardOrExtendedMessage,
+		Payload:     payload,
+	}
+
+	result := &Message{}
+
+	if err = m.roundtrip(ctx, p, result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (m *PowerLineModem) roundtrip(ctx context.Context, p *packet, result encoding.BinaryUnmarshaler) error {
+	for {
+		if err := m.writePacket(p); err != nil {
+			return err
+		}
+
+		p, err := m.readPacket(ctx, p.CommandCode)
+
+		if err != nil {
+			return err
+		}
+
+		if p.IsAck() {
+			break
+		}
+
+		select {
+		case <-time.After(time.Millisecond * 150):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	if result != nil {
+		return result.UnmarshalBinary(p.Payload)
+	}
+
+	return nil
 }

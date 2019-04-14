@@ -35,3 +35,11 @@ func (p packet) MarshalBinary() ([]byte, error) {
 
 	return b, nil
 }
+
+func (p packet) IsAck() bool {
+	return p.Ack == messageAck
+}
+
+func (p packet) IsNak() bool {
+	return p.Ack == messageNak
+}
