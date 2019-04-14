@@ -53,8 +53,6 @@ func (r packetReader) Read() ([]byte, error) {
 			return nil, err
 		}
 
-		// We may have to handle extended packets.
-
 		return result, nil
 	}
 }

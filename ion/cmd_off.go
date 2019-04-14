@@ -1,8 +1,15 @@
 package main
 
 import (
+	"errors"
+
 	"github.com/intelux/insteon"
 	"github.com/spf13/cobra"
+)
+
+var (
+	offCmdInstant bool
+	offCmdStep    bool
 )
 
 var offCmd = &cobra.Command{
@@ -15,9 +22,22 @@ var offCmd = &cobra.Command{
 			return err
 		}
 
+		var change = insteon.ChangeNormal
+
+		if onCmdInstant {
+			if onCmdStep {
+				return errors.New("can't specify both `--instant` and `--step`")
+			}
+
+			change = insteon.ChangeInstant
+		} else if onCmdStep {
+			change = insteon.ChangeStep
+		}
+
 		state := insteon.LightState{
-			Level: 0,
-			OnOff: insteon.LightOff,
+			Level:  0,
+			OnOff:  insteon.LightOff,
+			Change: change,
 		}
 
 		return insteon.DefaultPowerLineModem.SetLightState(rootCtx, id, state)
@@ -25,5 +45,8 @@ var offCmd = &cobra.Command{
 }
 
 func init() {
+	offCmd.Flags().BoolVarP(&offCmdInstant, "instant", "i", false, "Change the light state instantly. Incompatible with --step.")
+	offCmd.Flags().BoolVarP(&offCmdStep, "step", "s", false, "Change the light state by step. Incompatible with --instant.")
+
 	rootCmd.AddCommand(offCmd)
 }
