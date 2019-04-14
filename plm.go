@@ -133,6 +133,20 @@ func (m *PowerLineModem) SetLightState(ctx context.Context, identity ID, state L
 	return
 }
 
+// Beep causes a device to beep.
+func (m *PowerLineModem) Beep(ctx context.Context, identity ID) (err error) {
+	m.init()
+
+	err = m.execute(ctx, func(ctx context.Context) error {
+		msg := newMessage(identity, commandBytesBeep)
+		_, err := m.messageRoundtrip(ctx, msg)
+
+		return err
+	})
+
+	return
+}
+
 func (m *PowerLineModem) init() {
 	m.once.Do(func() {
 		m.ctx, m.cancel = context.WithCancel(context.Background())
