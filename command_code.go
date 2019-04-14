@@ -40,3 +40,11 @@ const (
 	cmdAllLinkRecordMessage        CommandCode = 0x57
 	cmdAllLinkCleanupStatusReport  CommandCode = 0x58
 )
+
+func isIncomingCommandCode(commandCode CommandCode) bool {
+	return commandCode < cmdGetIMInfo
+}
+
+func isOutgoingCommandCode(commandCode CommandCode) bool {
+	return commandCode >= cmdGetIMInfo
+}

@@ -20,6 +20,7 @@ const (
 
 // Message is sent through the PLM to communicate with other devices.
 type Message struct {
+	Source       ID
 	Target       ID
 	HopsLeft     int
 	MaxHops      int
@@ -56,16 +57,17 @@ func (m Message) IsExtended() bool {
 
 // MarshalBinary -
 func (m Message) MarshalBinary() ([]byte, error) {
-	data := make([]byte, 6)
+	data := make([]byte, 9)
 
-	copy(data[0:3], m.Target[:])
+	copy(data[0:3], m.Source[:])
+	copy(data[3:6], m.Target[:])
 
 	flagsByte := byte(
 		(m.MaxHops & 0x03) | (m.HopsLeft&0x03)<<2 | int(m.Flags),
 	)
 
-	data[3] = flagsByte
-	copy(data[4:6], m.CommandBytes[:])
+	data[6] = flagsByte
+	copy(data[7:9], m.CommandBytes[:])
 
 	if m.IsExtended() {
 		data = append(data, m.UserData[:]...)
@@ -77,31 +79,28 @@ func (m Message) MarshalBinary() ([]byte, error) {
 
 // UnmarshalBinary -
 func (m *Message) UnmarshalBinary(b []byte) error {
-	if len(b) != 6 && len(b) != 21 {
-		return fmt.Errorf("expected 6 or 21 bytes, got %d", len(b))
+	if len(b) != 9 && len(b) != 23 {
+		return fmt.Errorf("expected 9 or 23 bytes, got %d", len(b))
 	}
 
-	copy(m.Target[:], b[0:3])
+	copy(m.Source[:], b[0:3])
+	copy(m.Target[:], b[3:6])
 
-	flagsByte := b[3]
+	flagsByte := b[6]
 	m.MaxHops = int(flagsByte) & 0x03
 	m.HopsLeft = (int(flagsByte) & 0x0c) >> 2
 	m.Flags = MessageFlags(flagsByte & 0xf0)
 
-	copy(m.CommandBytes[:], b[4:6])
+	copy(m.CommandBytes[:], b[7:9])
 
 	if m.IsExtended() {
-		if len(b) != 21 {
+		if len(b) != 23 {
 			return fmt.Errorf("message has the extended flag but not the expected size")
 		}
 
-		copy(m.UserData[:], b[6:21])
-
-		if checksum(m.CommandBytes, m.UserData[:]) != 0 {
-			return fmt.Errorf("checksum mismatch")
-		}
+		copy(m.UserData[:], b[9:23])
 	} else {
-		if len(b) != 6 {
+		if len(b) != 9 {
 			return fmt.Errorf("message does not have the extended flag but has the size")
 		}
 	}

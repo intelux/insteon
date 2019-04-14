@@ -147,6 +147,32 @@ func (m *PowerLineModem) Beep(ctx context.Context, identity ID) (err error) {
 	return
 }
 
+// GetDeviceInfo returns the information about a device.
+func (m *PowerLineModem) GetDeviceInfo(ctx context.Context, identity ID) (deviceInfo *DeviceInfo, err error) {
+	m.init()
+
+	err = m.execute(ctx, func(ctx context.Context) error {
+		msg := newExtendedMessage(identity, commandBytesGetDeviceInfo, [14]byte{})
+		_, err := m.messageRoundtrip(ctx, msg)
+
+		if err != nil {
+			return err
+		}
+
+		rmsg, err := m.readExtendedMessage(ctx)
+
+		if err != nil {
+			return err
+		}
+
+		deviceInfo = &DeviceInfo{}
+
+		return deviceInfo.UnmarshalBinary(rmsg.UserData[:])
+	})
+
+	return
+}
+
 func (m *PowerLineModem) init() {
 	m.once.Do(func() {
 		m.ctx, m.cancel = context.WithCancel(context.Background())
@@ -258,19 +284,45 @@ func (m *PowerLineModem) messageRoundtrip(ctx context.Context, msg *Message) (*M
 	return result, nil
 }
 
-func (m *PowerLineModem) roundtrip(ctx context.Context, p *packet, result encoding.BinaryUnmarshaler) error {
+func (m *PowerLineModem) readMessage(ctx context.Context, commandCode CommandCode) (*Message, error) {
+	p, err := m.readPacket(ctx, commandCode)
+
+	if err != nil {
+		return nil, err
+	}
+
+	result := &Message{}
+
+	if err = result.UnmarshalBinary(p.Payload); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (m *PowerLineModem) readStandardMessage(ctx context.Context) (*Message, error) {
+	return m.readMessage(ctx, cmdStandardMessageReceived)
+}
+
+func (m *PowerLineModem) readExtendedMessage(ctx context.Context) (*Message, error) {
+	return m.readMessage(ctx, cmdExtendedMessageReceived)
+}
+
+func (m *PowerLineModem) roundtrip(ctx context.Context, p *packet, result encoding.BinaryUnmarshaler) (err error) {
+	var rp *packet
+
 	for {
-		if err := m.writePacket(p); err != nil {
+		if err = m.writePacket(p); err != nil {
 			return err
 		}
 
-		p, err := m.readPacket(ctx, p.CommandCode)
+		rp, err = m.readPacket(ctx, p.CommandCode)
 
 		if err != nil {
 			return err
 		}
 
-		if p.IsAck() {
+		if rp.IsAck() {
 			break
 		}
 
@@ -282,7 +334,7 @@ func (m *PowerLineModem) roundtrip(ctx context.Context, p *packet, result encodi
 	}
 
 	if result != nil {
-		return result.UnmarshalBinary(p.Payload)
+		return result.UnmarshalBinary(rp.Payload)
 	}
 
 	return nil

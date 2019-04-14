@@ -53,6 +53,17 @@ func (r packetReader) Read() ([]byte, error) {
 			return nil, err
 		}
 
+		// Extended messages have 14 additional bytes.
+		if commandCode == cmdSendStandardOrExtendedMessage && (MessageFlags(result[5])&MessageFlagExtended == MessageFlagExtended) {
+			userData := make([]byte, 14)
+
+			if _, err = io.ReadAtLeast(r.reader, userData, len(userData)); err != nil {
+				return nil, err
+			}
+
+			result = append(result, userData...)
+		}
+
 		return result, nil
 	}
 }

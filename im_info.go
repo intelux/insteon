@@ -1,5 +1,7 @@
 package insteon
 
+import "fmt"
+
 // IMInfo contains information about a PowerLine Modem.
 type IMInfo struct {
 	ID              ID       `json:"id"`
@@ -9,6 +11,10 @@ type IMInfo struct {
 
 // UnmarshalBinary -
 func (i *IMInfo) UnmarshalBinary(b []byte) error {
+	if len(b) != 6 {
+		return fmt.Errorf("expected 6 bytes but got %d", len(b))
+	}
+
 	copy(i.ID[:], b[:3])
 	i.Category.UnmarshalBinary(b[3:5])
 	i.FirmwareVersion = b[5]
