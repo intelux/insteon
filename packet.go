@@ -50,7 +50,7 @@ func (p packet) MarshalBinary() ([]byte, error) {
 	b[1] = byte(p.CommandCode)
 	copy(b[2:len(payload)+2], payload)
 
-	if isOutgoingCommandCode(p.CommandCode) {
+	if isOutgoingCommandCode(p.CommandCode) && p.Ack != 0 {
 		b = append(b, p.Ack)
 	}
 

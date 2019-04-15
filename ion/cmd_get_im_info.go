@@ -9,7 +9,8 @@ import (
 )
 
 var getIMInfoCmd = &cobra.Command{
-	Use: "get-im-info",
+	Use:  "get-im-info",
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		imInfo, err := insteon.DefaultPowerLineModem.GetIMInfo(rootCtx)
 

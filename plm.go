@@ -173,6 +173,105 @@ func (m *PowerLineModem) GetDeviceInfo(ctx context.Context, identity ID) (device
 	return
 }
 
+// SetDeviceX10Address sets a device X10 address.
+func (m *PowerLineModem) SetDeviceX10Address(ctx context.Context, identity ID, x10HouseCode byte, x10Unit byte) (err error) {
+	m.init()
+
+	err = m.execute(ctx, func(ctx context.Context) error {
+		userData := [14]byte{}
+		userData[1] = 0x04
+		userData[2] = x10HouseCode
+		userData[3] = x10Unit
+
+		msg := newExtendedMessage(identity, commandBytesSetDeviceInfo, userData)
+		_, err := m.messageRoundtrip(ctx, msg)
+
+		return err
+	})
+
+	return
+}
+
+// SetDeviceRampRate sets a device ramp rate.
+func (m *PowerLineModem) SetDeviceRampRate(ctx context.Context, identity ID, rampRate time.Duration) (err error) {
+	m.init()
+
+	err = m.execute(ctx, func(ctx context.Context) error {
+		userData := [14]byte{}
+		userData[1] = 0x05
+		userData[2] = rampRateToByte(rampRate)
+
+		msg := newExtendedMessage(identity, commandBytesSetDeviceInfo, userData)
+		_, err := m.messageRoundtrip(ctx, msg)
+
+		return err
+	})
+
+	return
+}
+
+// SetDeviceOnLevel sets a device on level.
+func (m *PowerLineModem) SetDeviceOnLevel(ctx context.Context, identity ID, level float64) (err error) {
+	m.init()
+
+	err = m.execute(ctx, func(ctx context.Context) error {
+		userData := [14]byte{}
+		userData[1] = 0x06
+		userData[2] = onLevelToByte(level)
+
+		msg := newExtendedMessage(identity, commandBytesSetDeviceInfo, userData)
+		_, err := m.messageRoundtrip(ctx, msg)
+
+		return err
+	})
+
+	return
+}
+
+// SetDeviceLEDBrightness sets a device LED brightness.
+func (m *PowerLineModem) SetDeviceLEDBrightness(ctx context.Context, identity ID, level float64) (err error) {
+	m.init()
+
+	err = m.execute(ctx, func(ctx context.Context) error {
+		userData := [14]byte{}
+		userData[1] = 0x07
+		userData[2] = ledBrightnessToByte(level)
+
+		msg := newExtendedMessage(identity, commandBytesSetDeviceInfo, userData)
+		_, err := m.messageRoundtrip(ctx, msg)
+
+		return err
+	})
+
+	return
+}
+
+// GetDeviceStatus gets the on level of a device.
+func (m *PowerLineModem) GetDeviceStatus(ctx context.Context, identity ID) (level float64, err error) {
+	m.init()
+
+	err = m.execute(ctx, func(ctx context.Context) error {
+		msg := newMessage(identity, commandBytesStatusRequest)
+		_, err := m.messageRoundtrip(ctx, msg)
+
+		if err != nil {
+			return err
+		}
+
+		rmsg, err := m.readStandardMessage(ctx)
+
+		if err != nil {
+			return err
+		}
+
+		level = byteToOnLevel(rmsg.CommandBytes[1])
+
+		return nil
+	})
+
+	return
+}
+
 func (m *PowerLineModem) init() {
 	m.once.Do(func() {
 		m.ctx, m.cancel = context.WithCancel(context.Background())
