@@ -14,8 +14,9 @@ var (
 )
 
 var onCmd = &cobra.Command{
-	Use:  "on <device>",
-	Args: cobra.ExactArgs(1),
+	Use:   "on <device>",
+	Short: "Turn on a device",
+	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id, err := insteon.ParseID(args[0])
 

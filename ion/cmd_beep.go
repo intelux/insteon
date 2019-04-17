@@ -6,8 +6,9 @@ import (
 )
 
 var beepCmd = &cobra.Command{
-	Use:  "beep <device>",
-	Args: cobra.ExactArgs(1),
+	Use:   "beep <device>",
+	Short: "Make a device beep",
+	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id, err := insteon.ParseID(args[0])
 

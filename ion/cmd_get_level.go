@@ -1,16 +1,16 @@
 package main
 
 import (
-	"encoding/json"
-	"os"
+	"fmt"
 
 	"github.com/intelux/insteon"
 	"github.com/spf13/cobra"
 )
 
-var getDeviceStatusCmd = &cobra.Command{
-	Use:  "get-device-status <device>",
-	Args: cobra.ExactArgs(1),
+var getLevelCmd = &cobra.Command{
+	Use:   "get-level <device>",
+	Short: "Get the current level of a device",
+	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id, err := insteon.ParseID(args[0])
 
@@ -24,10 +24,12 @@ var getDeviceStatusCmd = &cobra.Command{
 			return err
 		}
 
-		return json.NewEncoder(os.Stdout).Encode(level)
+		fmt.Printf("%.2f\n", level)
+
+		return nil
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(getDeviceStatusCmd)
+	rootCmd.AddCommand(getLevelCmd)
 }

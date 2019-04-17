@@ -11,8 +11,9 @@ import (
 )
 
 var getAllLinkDBCmd = &cobra.Command{
-	Use:  "get-all-link-db",
-	Args: cobra.NoArgs,
+	Use:   "get-all-link-db",
+	Short: "Get the AllLink database of the PowerLine Modem",
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		records, err := insteon.DefaultPowerLineModem.GetAllLinkDB(rootCtx)
 

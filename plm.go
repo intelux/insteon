@@ -479,7 +479,7 @@ func (m *PowerLineModem) roundtrip(ctx context.Context, p *packet, result encodi
 	var rp *packet
 
 	for {
-		rp, err := m.rawRoundtrip(ctx, p)
+		rp, err = m.rawRoundtrip(ctx, p)
 
 		if err != nil {
 			return err

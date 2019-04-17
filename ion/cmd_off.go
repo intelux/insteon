@@ -13,8 +13,9 @@ var (
 )
 
 var offCmd = &cobra.Command{
-	Use:  "off <device>",
-	Args: cobra.ExactArgs(1),
+	Use:   "off <device>",
+	Short: "Turn off a device",
+	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id, err := insteon.ParseID(args[0])
 
