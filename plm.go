@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
@@ -272,6 +273,57 @@ func (m *PowerLineModem) GetDeviceStatus(ctx context.Context, identity ID) (leve
 	return
 }
 
+// GetAllLinkDB gets the on level of a device.
+func (m *PowerLineModem) GetAllLinkDB(ctx context.Context) (records AllLinkRecordSlice, err error) {
+	m.init()
+
+	err = m.execute(ctx, func(ctx context.Context) error {
+		p, err := m.rawRoundtrip(ctx, &packet{CommandCode: cmdGetFirstAllLinkRecord})
+
+		if err != nil {
+			return err
+		}
+
+		// A NAK at this point indicates that the DB is empty.
+		if p.IsNak() {
+			return nil
+		}
+
+		record := &AllLinkRecord{}
+
+		if _, err := m.readPacketTo(ctx, cmdAllLinkRecordMessage, record); err != nil {
+			return err
+		}
+
+		records = append(records, *record)
+
+		for {
+			p, err := m.rawRoundtrip(ctx, &packet{CommandCode: cmdGetNextAllLinkRecord})
+
+			if err != nil {
+				break
+			}
+
+			// A NAK at this point indicates that the listing is over.
+			if p.IsNak() {
+				break
+			}
+
+			if _, err := m.readPacketTo(ctx, cmdAllLinkRecordMessage, record); err != nil {
+				return err
+			}
+
+			records = append(records, *record)
+		}
+
+		return nil
+	})
+
+	sort.Stable(records)
+
+	return
+}
+
 func (m *PowerLineModem) init() {
 	m.once.Do(func() {
 		m.ctx, m.cancel = context.WithCancel(context.Background())
@@ -356,6 +408,20 @@ func (m *PowerLineModem) readPacket(ctx context.Context, commandCode CommandCode
 	}
 }
 
+func (m *PowerLineModem) readPacketTo(ctx context.Context, commandCode CommandCode, result encoding.BinaryUnmarshaler) (*packet, error) {
+	p, err := m.readPacket(ctx, commandCode)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if result != nil {
+		return p, result.UnmarshalBinary(p.Payload)
+	}
+
+	return p, nil
+}
+
 func (m *PowerLineModem) writePacket(p *packet) error {
 	w := newPacketWriter(m.Device)
 
@@ -384,15 +450,9 @@ func (m *PowerLineModem) messageRoundtrip(ctx context.Context, msg *Message) (*M
 }
 
 func (m *PowerLineModem) readMessage(ctx context.Context, commandCode CommandCode) (*Message, error) {
-	p, err := m.readPacket(ctx, commandCode)
-
-	if err != nil {
-		return nil, err
-	}
-
 	result := &Message{}
 
-	if err = result.UnmarshalBinary(p.Payload); err != nil {
+	if _, err := m.readPacketTo(ctx, commandCode, result); err != nil {
 		return nil, err
 	}
 
@@ -407,15 +467,19 @@ func (m *PowerLineModem) readExtendedMessage(ctx context.Context) (*Message, err
 	return m.readMessage(ctx, cmdExtendedMessageReceived)
 }
 
+func (m *PowerLineModem) rawRoundtrip(ctx context.Context, p *packet) (*packet, error) {
+	if err := m.writePacket(p); err != nil {
+		return nil, err
+	}
+
+	return m.readPacket(ctx, p.CommandCode)
+}
+
 func (m *PowerLineModem) roundtrip(ctx context.Context, p *packet, result encoding.BinaryUnmarshaler) (err error) {
 	var rp *packet
 
 	for {
-		if err = m.writePacket(p); err != nil {
-			return err
-		}
-
-		rp, err = m.readPacket(ctx, p.CommandCode)
+		rp, err := m.rawRoundtrip(ctx, p)
 
 		if err != nil {
 			return err
