@@ -5,15 +5,22 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/intelux/insteon"
 	"github.com/spf13/cobra"
 )
 
 var (
 	rootCtx, rootCtxCancel = withInterrupt(context.Background())
+	rootConfig             *insteon.Configuration
 )
 
 var rootCmd = &cobra.Command{
 	Use: "ion",
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) (err error) {
+		rootConfig, err = insteon.LoadDefaultConfiguration()
+
+		return
+	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
 		rootCtxCancel()
 	},
