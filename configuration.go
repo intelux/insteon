@@ -15,11 +15,47 @@ type Configuration struct {
 	Devices []ConfigurationDevice `yaml:"devices"`
 }
 
+// LookupDevice finds a device from its alias or device ID.
+//
+// Devices that are not referenced in the configuration can still be looked-up
+// by their device ID.
+func (c *Configuration) LookupDevice(s string) (ID, error) {
+	if s != "" {
+		for _, device := range c.Devices {
+			if device.Alias == s {
+				return device.ID, nil
+			}
+		}
+	}
+
+	return ParseID(s)
+}
+
 // ConfigurationDevice represents a device in the configuration.
 type ConfigurationDevice struct {
 	ID    ID     `yaml:"id"`
 	Name  string `yaml:"name"`
+	Alias string `yaml:"alias,omitempty"`
 	Group string `yaml:"group,omitempty"`
+}
+
+// UnmarshalYAML -
+func (d *ConfigurationDevice) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type X ConfigurationDevice
+
+	x := &X{}
+
+	if err := unmarshal(x); err != nil {
+		return err
+	}
+
+	if x.Name == "" {
+		return fmt.Errorf("a name must be defined")
+	}
+
+	*d = *(*ConfigurationDevice)(x)
+
+	return nil
 }
 
 func getUserConfigPath() (string, error) {
