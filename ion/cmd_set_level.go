@@ -28,7 +28,7 @@ var setLevelCmd = &cobra.Command{
 		state := insteon.LightState{
 			Level:  level,
 			OnOff:  insteon.LightOn,
-			Change: insteon.ChangeInstant,
+			Change: insteon.ChangeNormal,
 		}
 
 		if err := insteon.DefaultPowerLineModem.SetLightState(rootCtx, device.ID, state); err != nil {
