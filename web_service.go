@@ -111,6 +111,10 @@ func (s *WebService) handleSetDeviceState(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	for _, id := range device.SlaveDeviceIDs {
+		s.PowerLineModem.SetDeviceState(r.Context(), id, *state)
+	}
+
 	s.handleValue(w, r, state)
 }
 
@@ -160,6 +164,10 @@ func (s *WebService) handleSetDeviceInfo(w http.ResponseWriter, r *http.Request)
 	if err := s.PowerLineModem.SetDeviceInfo(r.Context(), device.ID, *deviceInfo); err != nil {
 		s.handleError(w, r, err)
 		return
+	}
+
+	for _, id := range device.SlaveDeviceIDs {
+		s.PowerLineModem.SetDeviceInfo(r.Context(), id, *deviceInfo)
 	}
 
 	s.handleValue(w, r, deviceInfo)
