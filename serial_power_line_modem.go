@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/url"
 	"os"
 	"sort"
 	"sync"
@@ -15,8 +14,8 @@ import (
 	"github.com/jacobsa/go-serial/serial"
 )
 
-// PowerLineModem represnts a powerline modem.
-type PowerLineModem struct {
+// SerialPowerLineModem represnts a powerline modem.
+type SerialPowerLineModem struct {
 	// Device is the underlying device to use to send and receive PLM commands.
 	//
 	// Can be a local serial port or a remote one (TCP).
@@ -29,19 +28,8 @@ type PowerLineModem struct {
 	incomingPackets chan *packet
 }
 
-// DefaultPowerLineModem is the default PowerLine Modem instance.
-var DefaultPowerLineModem = func() *PowerLineModem {
-	plm, err := NewPowerLineModem(PowerLineModemDevice)
-
-	if err != nil {
-		panic(fmt.Errorf("instanciating default PowerLine Modem: %s", err))
-	}
-
-	return plm
-}()
-
 // NewLocalPowerLineModem instantiates a new local PowerLine Modem.
-func NewLocalPowerLineModem(serialPort string) (*PowerLineModem, error) {
+func NewLocalPowerLineModem(serialPort string) (*SerialPowerLineModem, error) {
 	options := serial.OpenOptions{
 		PortName:        serialPort,
 		BaudRate:        19200,
@@ -65,13 +53,13 @@ func NewLocalPowerLineModem(serialPort string) (*PowerLineModem, error) {
 		}
 	}
 
-	return &PowerLineModem{
+	return &SerialPowerLineModem{
 		Device: device,
 	}, nil
 }
 
 // NewRemotePowerLineModem instantiates a new remote PowerLine Modem.
-func NewRemotePowerLineModem(host string) (*PowerLineModem, error) {
+func NewRemotePowerLineModem(host string) (*SerialPowerLineModem, error) {
 	var device io.ReadWriteCloser
 	var err error
 
@@ -86,29 +74,13 @@ func NewRemotePowerLineModem(host string) (*PowerLineModem, error) {
 		}
 	}
 
-	return &PowerLineModem{
+	return &SerialPowerLineModem{
 		Device: device,
 	}, nil
 }
 
-// NewPowerLineModem instantiates a new PowerLine Modem.
-func NewPowerLineModem(device string) (*PowerLineModem, error) {
-	url, err := url.Parse(device)
-
-	if err != nil {
-		return nil, fmt.Errorf("parsing device: %s", err)
-	}
-
-	switch url.Scheme {
-	case "tcp":
-		return NewRemotePowerLineModem(url.Host)
-	default:
-		return NewLocalPowerLineModem(url.String())
-	}
-}
-
 // GetIMInfo gets information about the PowerLine Modem.
-func (m *PowerLineModem) GetIMInfo(ctx context.Context) (imInfo *IMInfo, err error) {
+func (m *SerialPowerLineModem) GetIMInfo(ctx context.Context) (imInfo *IMInfo, err error) {
 	m.init()
 
 	err = m.execute(ctx, func(ctx context.Context) error {
@@ -121,7 +93,7 @@ func (m *PowerLineModem) GetIMInfo(ctx context.Context) (imInfo *IMInfo, err err
 }
 
 // SetLightState sets the state of a lighting device.
-func (m *PowerLineModem) SetLightState(ctx context.Context, identity ID, state LightState) (err error) {
+func (m *SerialPowerLineModem) SetLightState(ctx context.Context, identity ID, state LightState) (err error) {
 	m.init()
 
 	err = m.execute(ctx, func(ctx context.Context) error {
@@ -135,7 +107,7 @@ func (m *PowerLineModem) SetLightState(ctx context.Context, identity ID, state L
 }
 
 // Beep causes a device to beep.
-func (m *PowerLineModem) Beep(ctx context.Context, identity ID) (err error) {
+func (m *SerialPowerLineModem) Beep(ctx context.Context, identity ID) (err error) {
 	m.init()
 
 	err = m.execute(ctx, func(ctx context.Context) error {
@@ -149,7 +121,7 @@ func (m *PowerLineModem) Beep(ctx context.Context, identity ID) (err error) {
 }
 
 // GetDeviceInfo returns the information about a device.
-func (m *PowerLineModem) GetDeviceInfo(ctx context.Context, identity ID) (deviceInfo *DeviceInfo, err error) {
+func (m *SerialPowerLineModem) GetDeviceInfo(ctx context.Context, identity ID) (deviceInfo *DeviceInfo, err error) {
 	m.init()
 
 	err = m.execute(ctx, func(ctx context.Context) error {
@@ -175,7 +147,7 @@ func (m *PowerLineModem) GetDeviceInfo(ctx context.Context, identity ID) (device
 }
 
 // SetDeviceX10Address sets a device X10 address.
-func (m *PowerLineModem) SetDeviceX10Address(ctx context.Context, identity ID, x10HouseCode byte, x10Unit byte) (err error) {
+func (m *SerialPowerLineModem) SetDeviceX10Address(ctx context.Context, identity ID, x10HouseCode byte, x10Unit byte) (err error) {
 	m.init()
 
 	err = m.execute(ctx, func(ctx context.Context) error {
@@ -194,7 +166,7 @@ func (m *PowerLineModem) SetDeviceX10Address(ctx context.Context, identity ID, x
 }
 
 // SetDeviceRampRate sets a device ramp rate.
-func (m *PowerLineModem) SetDeviceRampRate(ctx context.Context, identity ID, rampRate time.Duration) (err error) {
+func (m *SerialPowerLineModem) SetDeviceRampRate(ctx context.Context, identity ID, rampRate time.Duration) (err error) {
 	m.init()
 
 	err = m.execute(ctx, func(ctx context.Context) error {
@@ -212,7 +184,7 @@ func (m *PowerLineModem) SetDeviceRampRate(ctx context.Context, identity ID, ram
 }
 
 // SetDeviceOnLevel sets a device on level.
-func (m *PowerLineModem) SetDeviceOnLevel(ctx context.Context, identity ID, level float64) (err error) {
+func (m *SerialPowerLineModem) SetDeviceOnLevel(ctx context.Context, identity ID, level float64) (err error) {
 	m.init()
 
 	err = m.execute(ctx, func(ctx context.Context) error {
@@ -230,7 +202,7 @@ func (m *PowerLineModem) SetDeviceOnLevel(ctx context.Context, identity ID, leve
 }
 
 // SetDeviceLEDBrightness sets a device LED brightness.
-func (m *PowerLineModem) SetDeviceLEDBrightness(ctx context.Context, identity ID, level float64) (err error) {
+func (m *SerialPowerLineModem) SetDeviceLEDBrightness(ctx context.Context, identity ID, level float64) (err error) {
 	m.init()
 
 	err = m.execute(ctx, func(ctx context.Context) error {
@@ -248,7 +220,7 @@ func (m *PowerLineModem) SetDeviceLEDBrightness(ctx context.Context, identity ID
 }
 
 // GetDeviceStatus gets the on level of a device.
-func (m *PowerLineModem) GetDeviceStatus(ctx context.Context, identity ID) (level float64, err error) {
+func (m *SerialPowerLineModem) GetDeviceStatus(ctx context.Context, identity ID) (level float64, err error) {
 	m.init()
 
 	err = m.execute(ctx, func(ctx context.Context) error {
@@ -274,7 +246,7 @@ func (m *PowerLineModem) GetDeviceStatus(ctx context.Context, identity ID) (leve
 }
 
 // GetAllLinkDB gets the on level of a device.
-func (m *PowerLineModem) GetAllLinkDB(ctx context.Context) (records AllLinkRecordSlice, err error) {
+func (m *SerialPowerLineModem) GetAllLinkDB(ctx context.Context) (records AllLinkRecordSlice, err error) {
 	m.init()
 
 	err = m.execute(ctx, func(ctx context.Context) error {
@@ -324,7 +296,7 @@ func (m *PowerLineModem) GetAllLinkDB(ctx context.Context) (records AllLinkRecor
 	return
 }
 
-func (m *PowerLineModem) init() {
+func (m *SerialPowerLineModem) init() {
 	m.once.Do(func() {
 		m.ctx, m.cancel = context.WithCancel(context.Background())
 		m.routines = make(chan func())
@@ -340,7 +312,7 @@ func (m *PowerLineModem) init() {
 	})
 }
 
-func (m *PowerLineModem) execute(ctx context.Context, fn func(context.Context) error) error {
+func (m *SerialPowerLineModem) execute(ctx context.Context, fn func(context.Context) error) error {
 	ch := make(chan error, 1)
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -368,7 +340,7 @@ func (m *PowerLineModem) execute(ctx context.Context, fn func(context.Context) e
 	}
 }
 
-func (m *PowerLineModem) readLoop(ctx context.Context) {
+func (m *SerialPowerLineModem) readLoop(ctx context.Context) {
 	r := newPacketReader(m.Device)
 
 	for {
@@ -395,7 +367,7 @@ const (
 	messageNak byte = 0x15
 )
 
-func (m *PowerLineModem) readPacket(ctx context.Context, commandCode CommandCode) (*packet, error) {
+func (m *SerialPowerLineModem) readPacket(ctx context.Context, commandCode CommandCode) (*packet, error) {
 	for {
 		select {
 		case packet := <-m.incomingPackets:
@@ -408,7 +380,7 @@ func (m *PowerLineModem) readPacket(ctx context.Context, commandCode CommandCode
 	}
 }
 
-func (m *PowerLineModem) readPacketTo(ctx context.Context, commandCode CommandCode, result encoding.BinaryUnmarshaler) (*packet, error) {
+func (m *SerialPowerLineModem) readPacketTo(ctx context.Context, commandCode CommandCode, result encoding.BinaryUnmarshaler) (*packet, error) {
 	p, err := m.readPacket(ctx, commandCode)
 
 	if err != nil {
@@ -422,13 +394,13 @@ func (m *PowerLineModem) readPacketTo(ctx context.Context, commandCode CommandCo
 	return p, nil
 }
 
-func (m *PowerLineModem) writePacket(p *packet) error {
+func (m *SerialPowerLineModem) writePacket(p *packet) error {
 	w := newPacketWriter(m.Device)
 
 	return w.WritePacket(p)
 }
 
-func (m *PowerLineModem) messageRoundtrip(ctx context.Context, msg *Message) (*Message, error) {
+func (m *SerialPowerLineModem) messageRoundtrip(ctx context.Context, msg *Message) (*Message, error) {
 	payload, err := msg.MarshalBinary()
 
 	if err != nil {
@@ -449,7 +421,7 @@ func (m *PowerLineModem) messageRoundtrip(ctx context.Context, msg *Message) (*M
 	return result, nil
 }
 
-func (m *PowerLineModem) readMessage(ctx context.Context, commandCode CommandCode) (*Message, error) {
+func (m *SerialPowerLineModem) readMessage(ctx context.Context, commandCode CommandCode) (*Message, error) {
 	result := &Message{}
 
 	if _, err := m.readPacketTo(ctx, commandCode, result); err != nil {
@@ -459,15 +431,15 @@ func (m *PowerLineModem) readMessage(ctx context.Context, commandCode CommandCod
 	return result, nil
 }
 
-func (m *PowerLineModem) readStandardMessage(ctx context.Context) (*Message, error) {
+func (m *SerialPowerLineModem) readStandardMessage(ctx context.Context) (*Message, error) {
 	return m.readMessage(ctx, cmdStandardMessageReceived)
 }
 
-func (m *PowerLineModem) readExtendedMessage(ctx context.Context) (*Message, error) {
+func (m *SerialPowerLineModem) readExtendedMessage(ctx context.Context) (*Message, error) {
 	return m.readMessage(ctx, cmdExtendedMessageReceived)
 }
 
-func (m *PowerLineModem) rawRoundtrip(ctx context.Context, p *packet) (*packet, error) {
+func (m *SerialPowerLineModem) rawRoundtrip(ctx context.Context, p *packet) (*packet, error) {
 	if err := m.writePacket(p); err != nil {
 		return nil, err
 	}
@@ -475,7 +447,7 @@ func (m *PowerLineModem) rawRoundtrip(ctx context.Context, p *packet) (*packet, 
 	return m.readPacket(ctx, p.CommandCode)
 }
 
-func (m *PowerLineModem) roundtrip(ctx context.Context, p *packet, result encoding.BinaryUnmarshaler) (err error) {
+func (m *SerialPowerLineModem) roundtrip(ctx context.Context, p *packet, result encoding.BinaryUnmarshaler) (err error) {
 	var rp *packet
 
 	for {
