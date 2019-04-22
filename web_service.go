@@ -55,7 +55,7 @@ func (s *WebService) makeHandler() http.Handler {
 	router := mux.NewRouter()
 
 	router.Path("/api/im-info").Methods(http.MethodGet).HandlerFunc(s.handleGetIMInfo)
-	router.Path("/api/device/all-link-db").Methods(http.MethodGet).HandlerFunc(s.handleGetAllLinkDB)
+	router.Path("/api/all-link-db").Methods(http.MethodGet).HandlerFunc(s.handleGetAllLinkDB)
 	router.Path("/api/device/{id}/state").Methods(http.MethodGet).HandlerFunc(s.handleGetDeviceState)
 	router.Path("/api/device/{id}/state").Methods(http.MethodPut).HandlerFunc(s.handleSetDeviceState)
 	router.Path("/api/device/{id}/info").Methods(http.MethodGet).HandlerFunc(s.handleGetDeviceInfo)
