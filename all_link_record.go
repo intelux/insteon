@@ -10,10 +10,10 @@ type AllLinkRecordFlags byte
 
 // AllLinkRecord represents a all-link record.
 type AllLinkRecord struct {
-	Flags    AllLinkRecordFlags
-	Group    Group
-	ID       ID
-	LinkData [3]byte
+	Flags    AllLinkRecordFlags `json:"flags"`
+	Group    Group              `json:"group"`
+	ID       ID                 `json:"id"`
+	LinkData []byte             `json:"link_data"`
 }
 
 // UnmarshalBinary -
@@ -25,9 +25,24 @@ func (r *AllLinkRecord) UnmarshalBinary(b []byte) error {
 	r.Flags = AllLinkRecordFlags(b[0])
 	r.Group = Group(b[1])
 	copy(r.ID[:], b[2:5])
-	copy(r.LinkData[:], b[5:8])
+	r.LinkData = make([]byte, 3)
+	copy(r.LinkData, b[5:8])
 
 	return nil
+}
+
+// MarshalBinary -
+func (r *AllLinkRecord) MarshalBinary() ([]byte, error) {
+	return []byte{
+		byte(r.Flags),
+		byte(r.Group),
+		r.ID[0],
+		r.ID[1],
+		r.ID[2],
+		r.LinkData[0],
+		r.LinkData[1],
+		r.LinkData[2],
+	}, nil
 }
 
 // Mode returns the mode of an all-link record.
