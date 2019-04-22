@@ -42,12 +42,12 @@ var onCmd = &cobra.Command{
 			Change: change,
 		}
 
-		if err := insteon.DefaultPowerLineModem.SetLightState(rootCtx, device.ID, state); err != nil {
+		if err := insteon.DefaultPowerLineModem.SetDeviceState(rootCtx, device.ID, state); err != nil {
 			return err
 		}
 
 		for _, id := range device.SlaveDeviceIDs {
-			insteon.DefaultPowerLineModem.SetLightState(rootCtx, id, state)
+			insteon.DefaultPowerLineModem.SetDeviceState(rootCtx, id, state)
 		}
 
 		return nil

@@ -92,26 +92,94 @@ func (m *SerialPowerLineModem) GetIMInfo(ctx context.Context) (imInfo *IMInfo, e
 	return
 }
 
-// SetLightState sets the state of a lighting device.
-func (m *SerialPowerLineModem) SetLightState(ctx context.Context, identity ID, state LightState) (err error) {
+// GetAllLinkDB gets the on level of a device.
+func (m *SerialPowerLineModem) GetAllLinkDB(ctx context.Context) (records AllLinkRecordSlice, err error) {
 	m.init()
 
 	err = m.execute(ctx, func(ctx context.Context) error {
-		msg := newMessage(identity, state.asCommandBytes())
+		p, err := m.rawRoundtrip(ctx, &packet{CommandCode: cmdGetFirstAllLinkRecord})
+
+		if err != nil {
+			return err
+		}
+
+		// A NAK at this point indicates that the DB is empty.
+		if p.IsNak() {
+			return nil
+		}
+
+		record := &AllLinkRecord{}
+
+		if _, err := m.readPacketTo(ctx, cmdAllLinkRecordMessage, record); err != nil {
+			return err
+		}
+
+		records = append(records, *record)
+
+		for {
+			p, err := m.rawRoundtrip(ctx, &packet{CommandCode: cmdGetNextAllLinkRecord})
+
+			if err != nil {
+				break
+			}
+
+			// A NAK at this point indicates that the listing is over.
+			if p.IsNak() {
+				break
+			}
+
+			if _, err := m.readPacketTo(ctx, cmdAllLinkRecordMessage, record); err != nil {
+				return err
+			}
+
+			records = append(records, *record)
+		}
+
+		return nil
+	})
+
+	sort.Stable(records)
+
+	return
+}
+
+// GetDeviceState gets the on level of a device.
+func (m *SerialPowerLineModem) GetDeviceState(ctx context.Context, identity ID) (state *LightState, err error) {
+	m.init()
+
+	err = m.execute(ctx, func(ctx context.Context) error {
+		msg := newMessage(identity, commandBytesStatusRequest)
 		_, err := m.messageRoundtrip(ctx, msg)
 
-		return err
+		if err != nil {
+			return err
+		}
+
+		rmsg, err := m.readStandardMessage(ctx)
+
+		if err != nil {
+			return err
+		}
+
+		level := byteToOnLevel(rmsg.CommandBytes[1])
+
+		state = &LightState{
+			OnOff: level > 0,
+			Level: level,
+		}
+
+		return nil
 	})
 
 	return
 }
 
-// Beep causes a device to beep.
-func (m *SerialPowerLineModem) Beep(ctx context.Context, identity ID) (err error) {
+// SetDeviceState sets the state of a lighting device.
+func (m *SerialPowerLineModem) SetDeviceState(ctx context.Context, identity ID, state LightState) (err error) {
 	m.init()
 
 	err = m.execute(ctx, func(ctx context.Context) error {
-		msg := newMessage(identity, commandBytesBeep)
+		msg := newMessage(identity, state.asCommandBytes())
 		_, err := m.messageRoundtrip(ctx, msg)
 
 		return err
@@ -146,15 +214,44 @@ func (m *SerialPowerLineModem) GetDeviceInfo(ctx context.Context, identity ID) (
 	return
 }
 
+// SetDeviceInfo sets the information on device.
+func (m *SerialPowerLineModem) SetDeviceInfo(ctx context.Context, identity ID, deviceInfo DeviceInfo) (err error) {
+	if deviceInfo.X10Address != nil {
+		if err = m.SetDeviceX10Address(ctx, identity, *deviceInfo.X10Address); err != nil {
+			return err
+		}
+	}
+
+	if deviceInfo.RampRate != nil {
+		if err = m.SetDeviceRampRate(ctx, identity, *deviceInfo.RampRate); err != nil {
+			return err
+		}
+	}
+
+	if deviceInfo.OnLevel != nil {
+		if err = m.SetDeviceOnLevel(ctx, identity, *deviceInfo.OnLevel); err != nil {
+			return err
+		}
+	}
+
+	if deviceInfo.LEDBrightness != nil {
+		if err = m.SetDeviceLEDBrightness(ctx, identity, *deviceInfo.LEDBrightness); err != nil {
+			return err
+		}
+	}
+
+	return
+}
+
 // SetDeviceX10Address sets a device X10 address.
-func (m *SerialPowerLineModem) SetDeviceX10Address(ctx context.Context, identity ID, x10HouseCode byte, x10Unit byte) (err error) {
+func (m *SerialPowerLineModem) SetDeviceX10Address(ctx context.Context, identity ID, x10Address [2]byte) (err error) {
 	m.init()
 
 	err = m.execute(ctx, func(ctx context.Context) error {
 		userData := [14]byte{}
 		userData[1] = 0x04
-		userData[2] = x10HouseCode
-		userData[3] = x10Unit
+		userData[2] = x10Address[0]
+		userData[3] = x10Address[1]
 
 		msg := newExtendedMessage(identity, commandBytesSetDeviceInfo, userData)
 		_, err := m.messageRoundtrip(ctx, msg)
@@ -219,79 +316,16 @@ func (m *SerialPowerLineModem) SetDeviceLEDBrightness(ctx context.Context, ident
 	return
 }
 
-// GetDeviceStatus gets the on level of a device.
-func (m *SerialPowerLineModem) GetDeviceStatus(ctx context.Context, identity ID) (level float64, err error) {
+// Beep causes a device to beep.
+func (m *SerialPowerLineModem) Beep(ctx context.Context, identity ID) (err error) {
 	m.init()
 
 	err = m.execute(ctx, func(ctx context.Context) error {
-		msg := newMessage(identity, commandBytesStatusRequest)
+		msg := newMessage(identity, commandBytesBeep)
 		_, err := m.messageRoundtrip(ctx, msg)
 
-		if err != nil {
-			return err
-		}
-
-		rmsg, err := m.readStandardMessage(ctx)
-
-		if err != nil {
-			return err
-		}
-
-		level = byteToOnLevel(rmsg.CommandBytes[1])
-
-		return nil
+		return err
 	})
-
-	return
-}
-
-// GetAllLinkDB gets the on level of a device.
-func (m *SerialPowerLineModem) GetAllLinkDB(ctx context.Context) (records AllLinkRecordSlice, err error) {
-	m.init()
-
-	err = m.execute(ctx, func(ctx context.Context) error {
-		p, err := m.rawRoundtrip(ctx, &packet{CommandCode: cmdGetFirstAllLinkRecord})
-
-		if err != nil {
-			return err
-		}
-
-		// A NAK at this point indicates that the DB is empty.
-		if p.IsNak() {
-			return nil
-		}
-
-		record := &AllLinkRecord{}
-
-		if _, err := m.readPacketTo(ctx, cmdAllLinkRecordMessage, record); err != nil {
-			return err
-		}
-
-		records = append(records, *record)
-
-		for {
-			p, err := m.rawRoundtrip(ctx, &packet{CommandCode: cmdGetNextAllLinkRecord})
-
-			if err != nil {
-				break
-			}
-
-			// A NAK at this point indicates that the listing is over.
-			if p.IsNak() {
-				break
-			}
-
-			if _, err := m.readPacketTo(ctx, cmdAllLinkRecordMessage, record); err != nil {
-				return err
-			}
-
-			records = append(records, *record)
-		}
-
-		return nil
-	})
-
-	sort.Stable(records)
 
 	return
 }

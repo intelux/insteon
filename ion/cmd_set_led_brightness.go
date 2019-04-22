@@ -24,12 +24,16 @@ var setLEDBrightnessCmd = &cobra.Command{
 			return err
 		}
 
-		if err := insteon.DefaultPowerLineModem.SetDeviceLEDBrightness(rootCtx, device.ID, level); err != nil {
+		deviceInfo := insteon.DeviceInfo{
+			LEDBrightness: &level,
+		}
+
+		if err := insteon.DefaultPowerLineModem.SetDeviceInfo(rootCtx, device.ID, deviceInfo); err != nil {
 			return err
 		}
 
 		for _, id := range device.SlaveDeviceIDs {
-			insteon.DefaultPowerLineModem.SetDeviceLEDBrightness(rootCtx, id, level)
+			insteon.DefaultPowerLineModem.SetDeviceInfo(rootCtx, id, deviceInfo)
 		}
 
 		return nil

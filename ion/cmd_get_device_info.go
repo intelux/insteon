@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"fmt"
 	"os"
 	"text/tabwriter"
@@ -26,21 +27,13 @@ var getDeviceInfoCmd = &cobra.Command{
 			return err
 		}
 
-		level, err := insteon.DefaultPowerLineModem.GetDeviceStatus(rootCtx, device.ID)
-
-		if err != nil {
-			return err
-		}
-
 		w := &tabwriter.Writer{}
 		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
 		fmt.Fprintf(w, "Attribute\tValue\n")
-		fmt.Fprintf(w, "X10 House Code\t%02x\n", deviceInfo.X10HouseCode)
-		fmt.Fprintf(w, "X10 Unit\t%02x\n", deviceInfo.X10Unit)
-		fmt.Fprintf(w, "Ramp rate\t%s\n", deviceInfo.RampRate)
-		fmt.Fprintf(w, "On level\t%.2f\n", deviceInfo.OnLevel)
-		fmt.Fprintf(w, "LED brightness\t%.2f\n", deviceInfo.LEDBrightness)
-		fmt.Fprintf(w, "Level\t%.2f\n", level)
+		fmt.Fprintf(w, "X10 Address\t%s\n", hex.EncodeToString((*deviceInfo.X10Address)[:]))
+		fmt.Fprintf(w, "Ramp rate\t%s\n", *deviceInfo.RampRate)
+		fmt.Fprintf(w, "On level\t%.2f\n", *deviceInfo.OnLevel)
+		fmt.Fprintf(w, "LED brightness\t%.2f\n", *deviceInfo.LEDBrightness)
 		return w.Flush()
 	},
 }

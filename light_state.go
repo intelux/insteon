@@ -45,9 +45,9 @@ const (
 
 // LightState represents a light state.
 type LightState struct {
-	OnOff  LightOnOff
-	Change LightStateChange
-	Level  float64
+	OnOff  LightOnOff       `json:"onoff"`
+	Change LightStateChange `json:"change,omitempty"`
+	Level  float64          `json:"level,omitempty"`
 }
 
 func (s LightState) asCommandBytes() [2]byte {

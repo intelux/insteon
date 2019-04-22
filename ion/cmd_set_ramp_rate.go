@@ -25,12 +25,16 @@ var setRampRateCmd = &cobra.Command{
 			return err
 		}
 
-		if err := insteon.DefaultPowerLineModem.SetDeviceRampRate(rootCtx, device.ID, rampRate); err != nil {
+		deviceInfo := insteon.DeviceInfo{
+			RampRate: &rampRate,
+		}
+
+		if err := insteon.DefaultPowerLineModem.SetDeviceInfo(rootCtx, device.ID, deviceInfo); err != nil {
 			return err
 		}
 
 		for _, id := range device.SlaveDeviceIDs {
-			insteon.DefaultPowerLineModem.SetDeviceRampRate(rootCtx, id, rampRate)
+			insteon.DefaultPowerLineModem.SetDeviceInfo(rootCtx, id, deviceInfo)
 		}
 
 		return nil

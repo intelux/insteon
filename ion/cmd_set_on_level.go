@@ -25,12 +25,16 @@ var setOnLevelCmd = &cobra.Command{
 			return err
 		}
 
-		if err := insteon.DefaultPowerLineModem.SetDeviceOnLevel(rootCtx, device.ID, level); err != nil {
+		deviceInfo := insteon.DeviceInfo{
+			OnLevel: &level,
+		}
+
+		if err := insteon.DefaultPowerLineModem.SetDeviceInfo(rootCtx, device.ID, deviceInfo); err != nil {
 			return err
 		}
 
 		for _, id := range device.SlaveDeviceIDs {
-			insteon.DefaultPowerLineModem.SetDeviceOnLevel(rootCtx, id, level)
+			insteon.DefaultPowerLineModem.SetDeviceInfo(rootCtx, id, deviceInfo)
 		}
 
 		return nil

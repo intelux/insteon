@@ -18,13 +18,13 @@ var getLevelCmd = &cobra.Command{
 			return err
 		}
 
-		level, err := insteon.DefaultPowerLineModem.GetDeviceStatus(rootCtx, device.ID)
+		state, err := insteon.DefaultPowerLineModem.GetDeviceState(rootCtx, device.ID)
 
 		if err != nil {
 			return err
 		}
 
-		fmt.Printf("%.2f\n", level)
+		fmt.Printf("%.2f\n", state.Level)
 
 		return nil
 	},

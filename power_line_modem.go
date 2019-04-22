@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"time"
 )
 
 // PowerLineModem represnts a powerline modem.
 type PowerLineModem interface {
 	GetIMInfo(ctx context.Context) (imInfo *IMInfo, err error)
-	SetLightState(ctx context.Context, identity ID, state LightState) (err error)
-	Beep(ctx context.Context, identity ID) (err error)
-	GetDeviceInfo(ctx context.Context, identity ID) (deviceInfo *DeviceInfo, err error)
-	SetDeviceX10Address(ctx context.Context, identity ID, x10HouseCode byte, x10Unit byte) (err error)
-	SetDeviceRampRate(ctx context.Context, identity ID, rampRate time.Duration) (err error)
-	SetDeviceOnLevel(ctx context.Context, identity ID, level float64) (err error)
-	SetDeviceLEDBrightness(ctx context.Context, identity ID, level float64) (err error)
-	GetDeviceStatus(ctx context.Context, identity ID) (level float64, err error)
 	GetAllLinkDB(ctx context.Context) (records AllLinkRecordSlice, err error)
+	GetDeviceState(ctx context.Context, identity ID) (state *LightState, err error)
+	SetDeviceState(ctx context.Context, identity ID, state LightState) (err error)
+	GetDeviceInfo(ctx context.Context, identity ID) (deviceInfo *DeviceInfo, err error)
+	SetDeviceInfo(ctx context.Context, identity ID, deviceInfo DeviceInfo) error
+	Beep(ctx context.Context, identity ID) (err error)
 }
 
 // DefaultPowerLineModem is the default PowerLine Modem instance.

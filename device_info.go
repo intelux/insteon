@@ -7,11 +7,10 @@ import (
 
 // DeviceInfo contains information about a device.
 type DeviceInfo struct {
-	X10HouseCode  byte          `json:"x10_house_code"`
-	X10Unit       byte          `json:"x10_unit"`
-	RampRate      time.Duration `json:"ramp_rate"`
-	OnLevel       float64       `json:"on_level"`
-	LEDBrightness float64       `json:"led_brightness"`
+	X10Address    *[2]byte       `json:"x10_address,omitempty"`
+	RampRate      *time.Duration `json:"ramp_rate,omitempty"`
+	OnLevel       *float64       `json:"on_level,omitempty"`
+	LEDBrightness *float64       `json:"led_brightness,omitempty"`
 }
 
 // UnmarshalBinary -
@@ -20,11 +19,14 @@ func (i *DeviceInfo) UnmarshalBinary(b []byte) error {
 		return fmt.Errorf("expected 14 bytes but got %d", len(b))
 	}
 
-	i.X10HouseCode = b[4]
-	i.X10Unit = b[5]
-	i.RampRate = byteToRampRate(b[6])
-	i.OnLevel = byteToOnLevel(b[7])
-	i.LEDBrightness = byteToLEDBrightness(b[8])
+	x10Address := [2]byte{b[4], b[5]}
+	i.X10Address = &x10Address
+	rampRate := byteToRampRate(b[6])
+	i.RampRate = &rampRate
+	onLevel := byteToOnLevel(b[7])
+	i.OnLevel = &onLevel
+	ledBrightness := byteToLEDBrightness(b[8])
+	i.LEDBrightness = &ledBrightness
 
 	return nil
 }
@@ -32,11 +34,11 @@ func (i *DeviceInfo) UnmarshalBinary(b []byte) error {
 // MarshalBinary -
 func (i DeviceInfo) MarshalBinary() ([]byte, error) {
 	result := make([]byte, 14)
-	result[4] = i.X10HouseCode
-	result[5] = i.X10Unit
-	result[6] = rampRateToByte(i.RampRate)
-	result[7] = onLevelToByte(i.OnLevel)
-	result[8] = ledBrightnessToByte(i.LEDBrightness)
+	result[4] = (*i.X10Address)[0]
+	result[5] = (*i.X10Address)[1]
+	result[6] = rampRateToByte(*i.RampRate)
+	result[7] = onLevelToByte(*i.OnLevel)
+	result[8] = ledBrightnessToByte(*i.LEDBrightness)
 
 	return result, nil
 }
