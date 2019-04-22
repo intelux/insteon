@@ -43,6 +43,46 @@ const (
 	ChangeStop
 )
 
+// UnmarshalText -
+func (c *LightStateChange) UnmarshalText(b []byte) error {
+	s := string(b)
+
+	switch s {
+	case "normal":
+		*c = ChangeNormal
+	case "instant":
+		*c = ChangeInstant
+	case "step":
+		*c = ChangeStep
+	case "start":
+		*c = ChangeStart
+	case "stop":
+		*c = ChangeStop
+	default:
+		return fmt.Errorf("unsupported light state change: %s", s)
+	}
+
+	return nil
+}
+
+// MarshalText -
+func (c LightStateChange) MarshalText() ([]byte, error) {
+	switch c {
+	case ChangeNormal:
+		return []byte("normal"), nil
+	case ChangeInstant:
+		return []byte("instant"), nil
+	case ChangeStep:
+		return []byte("step"), nil
+	case ChangeStart:
+		return []byte("start"), nil
+	case ChangeStop:
+		return []byte("stop"), nil
+	default:
+		return []byte("normal"), nil
+	}
+}
+
 // LightState represents a light state.
 type LightState struct {
 	OnOff  LightOnOff       `json:"onoff"`
