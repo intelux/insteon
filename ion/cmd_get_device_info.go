@@ -14,7 +14,7 @@ var getDeviceInfoCmd = &cobra.Command{
 	Short: "Get all the available information about a device",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := insteon.ParseID(args[0])
+		id, err := rootConfig.LookupDevice(args[0])
 
 		if err != nil {
 			return err
