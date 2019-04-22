@@ -18,7 +18,7 @@ var onCmd = &cobra.Command{
 	Short: "Turn on a device",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := rootConfig.LookupDevice(args[0])
+		device, err := rootConfig.LookupDevice(args[0])
 
 		if err != nil {
 			return err
@@ -42,7 +42,15 @@ var onCmd = &cobra.Command{
 			Change: change,
 		}
 
-		return insteon.DefaultPowerLineModem.SetLightState(rootCtx, id, state)
+		if err := insteon.DefaultPowerLineModem.SetLightState(rootCtx, device.ID, state); err != nil {
+			return err
+		}
+
+		for _, id := range device.SlaveDeviceIDs {
+			insteon.DefaultPowerLineModem.SetLightState(rootCtx, id, state)
+		}
+
+		return nil
 	},
 }
 

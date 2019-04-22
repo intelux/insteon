@@ -13,7 +13,7 @@ var setOnLevelCmd = &cobra.Command{
 	Long:  `Set the On level of a device`,
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := rootConfig.LookupDevice(args[0])
+		device, err := rootConfig.LookupDevice(args[0])
 
 		if err != nil {
 			return err
@@ -25,7 +25,15 @@ var setOnLevelCmd = &cobra.Command{
 			return err
 		}
 
-		return insteon.DefaultPowerLineModem.SetDeviceOnLevel(rootCtx, id, level)
+		if err := insteon.DefaultPowerLineModem.SetDeviceOnLevel(rootCtx, device.ID, level); err != nil {
+			return err
+		}
+
+		for _, id := range device.SlaveDeviceIDs {
+			insteon.DefaultPowerLineModem.SetDeviceOnLevel(rootCtx, id, level)
+		}
+
+		return nil
 	},
 }
 

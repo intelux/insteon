@@ -10,13 +10,21 @@ var beepCmd = &cobra.Command{
 	Short: "Make a device beep",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := rootConfig.LookupDevice(args[0])
+		device, err := rootConfig.LookupDevice(args[0])
 
 		if err != nil {
 			return err
 		}
 
-		return insteon.DefaultPowerLineModem.Beep(rootCtx, id)
+		if err := insteon.DefaultPowerLineModem.Beep(rootCtx, device.ID); err != nil {
+			return err
+		}
+
+		for _, id := range device.SlaveDeviceIDs {
+			insteon.DefaultPowerLineModem.Beep(rootCtx, id)
+		}
+
+		return nil
 	},
 }
 

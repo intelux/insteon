@@ -19,24 +19,35 @@ type Configuration struct {
 //
 // Devices that are not referenced in the configuration can still be looked-up
 // by their device ID.
-func (c *Configuration) LookupDevice(s string) (ID, error) {
+func (c *Configuration) LookupDevice(s string) (*ConfigurationDevice, error) {
 	if s != "" {
 		for _, device := range c.Devices {
 			if device.Alias == s {
-				return device.ID, nil
+				return &device, nil
 			}
 		}
 	}
 
-	return ParseID(s)
+	// As a fallback, return a fake device created on the spot.
+	id, err := ParseID(s)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &ConfigurationDevice{
+		ID:   id,
+		Name: id.String(),
+	}, nil
 }
 
 // ConfigurationDevice represents a device in the configuration.
 type ConfigurationDevice struct {
-	ID    ID     `yaml:"id"`
-	Name  string `yaml:"name"`
-	Alias string `yaml:"alias,omitempty"`
-	Group string `yaml:"group,omitempty"`
+	ID             ID     `yaml:"id"`
+	Name           string `yaml:"name"`
+	Alias          string `yaml:"alias,omitempty"`
+	Group          string `yaml:"group,omitempty"`
+	SlaveDeviceIDs []ID   `yaml:"slave_devices"`
 }
 
 // UnmarshalYAML -

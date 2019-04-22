@@ -12,7 +12,7 @@ var setLEDBrightnessCmd = &cobra.Command{
 	Short: "Set the led-brightness of a device",
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := rootConfig.LookupDevice(args[0])
+		device, err := rootConfig.LookupDevice(args[0])
 
 		if err != nil {
 			return err
@@ -24,7 +24,15 @@ var setLEDBrightnessCmd = &cobra.Command{
 			return err
 		}
 
-		return insteon.DefaultPowerLineModem.SetDeviceLEDBrightness(rootCtx, id, level)
+		if err := insteon.DefaultPowerLineModem.SetDeviceLEDBrightness(rootCtx, device.ID, level); err != nil {
+			return err
+		}
+
+		for _, id := range device.SlaveDeviceIDs {
+			insteon.DefaultPowerLineModem.SetDeviceLEDBrightness(rootCtx, id, level)
+		}
+
+		return nil
 	},
 }
 

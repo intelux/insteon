@@ -13,7 +13,7 @@ var setRampRateCmd = &cobra.Command{
 	Long:  `Set the ramp-rate of a device`,
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := rootConfig.LookupDevice(args[0])
+		device, err := rootConfig.LookupDevice(args[0])
 
 		if err != nil {
 			return err
@@ -25,7 +25,15 @@ var setRampRateCmd = &cobra.Command{
 			return err
 		}
 
-		return insteon.DefaultPowerLineModem.SetDeviceRampRate(rootCtx, id, rampRate)
+		if err := insteon.DefaultPowerLineModem.SetDeviceRampRate(rootCtx, device.ID, rampRate); err != nil {
+			return err
+		}
+
+		for _, id := range device.SlaveDeviceIDs {
+			insteon.DefaultPowerLineModem.SetDeviceRampRate(rootCtx, id, rampRate)
+		}
+
+		return nil
 	},
 }
 

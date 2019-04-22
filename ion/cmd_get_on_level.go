@@ -12,13 +12,13 @@ var getOnLevelCmd = &cobra.Command{
 	Short: "Get the On level of a device",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := rootConfig.LookupDevice(args[0])
+		device, err := rootConfig.LookupDevice(args[0])
 
 		if err != nil {
 			return err
 		}
 
-		deviceInfo, err := insteon.DefaultPowerLineModem.GetDeviceInfo(rootCtx, id)
+		deviceInfo, err := insteon.DefaultPowerLineModem.GetDeviceInfo(rootCtx, device.ID)
 
 		if err != nil {
 			return err
