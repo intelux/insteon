@@ -24,7 +24,7 @@ var getLEDBrightnessCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("%.2f\n", deviceInfo.LEDBrightness)
+		fmt.Printf("%.2f\n", *deviceInfo.LEDBrightness)
 
 		return nil
 	},

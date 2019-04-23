@@ -24,7 +24,7 @@ var getOnLevelCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("%.2f\n", deviceInfo.OnLevel)
+		fmt.Printf("%.2f\n", *deviceInfo.OnLevel)
 
 		return nil
 	},

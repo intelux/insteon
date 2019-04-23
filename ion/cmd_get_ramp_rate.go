@@ -24,7 +24,7 @@ var getRampRateCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("%s\n", deviceInfo.RampRate)
+		fmt.Printf("%s\n", *deviceInfo.RampRate)
 
 		return nil
 	},
