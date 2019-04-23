@@ -54,13 +54,20 @@ func (s *WebService) init() {
 func (s *WebService) makeHandler() http.Handler {
 	router := mux.NewRouter()
 
-	router.Path("/api/im-info").Methods(http.MethodGet).HandlerFunc(s.handleGetIMInfo)
-	router.Path("/api/all-link-db").Methods(http.MethodGet).HandlerFunc(s.handleGetAllLinkDB)
-	router.Path("/api/device/{id}/state").Methods(http.MethodGet).HandlerFunc(s.handleGetDeviceState)
-	router.Path("/api/device/{id}/state").Methods(http.MethodPut).HandlerFunc(s.handleSetDeviceState)
-	router.Path("/api/device/{id}/info").Methods(http.MethodGet).HandlerFunc(s.handleGetDeviceInfo)
-	router.Path("/api/device/{id}/info").Methods(http.MethodPut).HandlerFunc(s.handleSetDeviceInfo)
-	router.Path("/api/device/{id}/beep").Methods(http.MethodPost).HandlerFunc(s.handleBeep)
+	// PLM-specific routes.
+	router.Path("/plm/im-info").Methods(http.MethodGet).HandlerFunc(s.handleGetIMInfo)
+	router.Path("/plm/all-link-db").Methods(http.MethodGet).HandlerFunc(s.handleGetAllLinkDB)
+	router.Path("/plm/device/{id}/state").Methods(http.MethodGet).HandlerFunc(s.handleGetDeviceState)
+	router.Path("/plm/device/{id}/state").Methods(http.MethodPut).HandlerFunc(s.handleSetDeviceState)
+	router.Path("/plm/device/{id}/info").Methods(http.MethodGet).HandlerFunc(s.handleGetDeviceInfo)
+	router.Path("/plm/device/{id}/info").Methods(http.MethodPut).HandlerFunc(s.handleSetDeviceInfo)
+	router.Path("/plm/device/{id}/beep").Methods(http.MethodPost).HandlerFunc(s.handleBeep)
+
+	// API routes.
+	router.Path("/api/device/{device}/state").Methods(http.MethodGet).HandlerFunc(s.handleAPIGetDeviceState)
+	router.Path("/api/device/{device}/state").Methods(http.MethodPut).HandlerFunc(s.handleAPISetDeviceState)
+	router.Path("/api/device/{device}/info").Methods(http.MethodGet).HandlerFunc(s.handleAPIGetDeviceInfo)
+	router.Path("/api/device/{device}/info").Methods(http.MethodPut).HandlerFunc(s.handleAPISetDeviceInfo)
 
 	return router
 }
@@ -77,6 +84,106 @@ func (s *WebService) handleGetIMInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *WebService) handleGetDeviceState(w http.ResponseWriter, r *http.Request) {
+	id := s.parseID(w, r)
+
+	if id == nil {
+		return
+	}
+
+	state, err := s.PowerLineModem.GetDeviceState(r.Context(), *id)
+
+	if err != nil {
+		s.handleError(w, r, err)
+		return
+	}
+
+	s.handleValue(w, r, state)
+}
+
+func (s *WebService) handleSetDeviceState(w http.ResponseWriter, r *http.Request) {
+	id := s.parseID(w, r)
+
+	if id == nil {
+		return
+	}
+
+	state := &LightState{}
+
+	if !s.decodeValue(w, r, state) {
+		return
+	}
+
+	if err := s.PowerLineModem.SetDeviceState(r.Context(), *id, *state); err != nil {
+		s.handleError(w, r, err)
+		return
+	}
+
+	s.handleValue(w, r, state)
+}
+
+func (s *WebService) handleBeep(w http.ResponseWriter, r *http.Request) {
+	id := s.parseID(w, r)
+
+	if id == nil {
+		return
+	}
+
+	if err := s.PowerLineModem.Beep(r.Context(), *id); err != nil {
+		s.handleError(w, r, err)
+		return
+	}
+}
+
+func (s *WebService) handleGetDeviceInfo(w http.ResponseWriter, r *http.Request) {
+	id := s.parseID(w, r)
+
+	if id == nil {
+		return
+	}
+
+	deviceInfo, err := s.PowerLineModem.GetDeviceInfo(r.Context(), *id)
+
+	if err != nil {
+		s.handleError(w, r, err)
+		return
+	}
+
+	s.handleValue(w, r, deviceInfo)
+}
+
+func (s *WebService) handleSetDeviceInfo(w http.ResponseWriter, r *http.Request) {
+	id := s.parseID(w, r)
+
+	if id == nil {
+		return
+	}
+
+	deviceInfo := &DeviceInfo{}
+
+	if !s.decodeValue(w, r, deviceInfo) {
+		return
+	}
+
+	if err := s.PowerLineModem.SetDeviceInfo(r.Context(), *id, *deviceInfo); err != nil {
+		s.handleError(w, r, err)
+		return
+	}
+
+	s.handleValue(w, r, deviceInfo)
+}
+
+func (s *WebService) handleGetAllLinkDB(w http.ResponseWriter, r *http.Request) {
+	records, err := s.PowerLineModem.GetAllLinkDB(r.Context())
+
+	if err != nil {
+		s.handleError(w, r, err)
+		return
+	}
+
+	s.handleValue(w, r, records)
+}
+
+func (s *WebService) handleAPIGetDeviceState(w http.ResponseWriter, r *http.Request) {
 	device := s.parseDevice(w, r)
 
 	if device == nil {
@@ -93,7 +200,7 @@ func (s *WebService) handleGetDeviceState(w http.ResponseWriter, r *http.Request
 	s.handleValue(w, r, state)
 }
 
-func (s *WebService) handleSetDeviceState(w http.ResponseWriter, r *http.Request) {
+func (s *WebService) handleAPISetDeviceState(w http.ResponseWriter, r *http.Request) {
 	device := s.parseDevice(w, r)
 
 	if device == nil {
@@ -118,20 +225,7 @@ func (s *WebService) handleSetDeviceState(w http.ResponseWriter, r *http.Request
 	s.handleValue(w, r, state)
 }
 
-func (s *WebService) handleBeep(w http.ResponseWriter, r *http.Request) {
-	device := s.parseDevice(w, r)
-
-	if device == nil {
-		return
-	}
-
-	if err := s.PowerLineModem.Beep(r.Context(), device.ID); err != nil {
-		s.handleError(w, r, err)
-		return
-	}
-}
-
-func (s *WebService) handleGetDeviceInfo(w http.ResponseWriter, r *http.Request) {
+func (s *WebService) handleAPIGetDeviceInfo(w http.ResponseWriter, r *http.Request) {
 	device := s.parseDevice(w, r)
 
 	if device == nil {
@@ -148,7 +242,7 @@ func (s *WebService) handleGetDeviceInfo(w http.ResponseWriter, r *http.Request)
 	s.handleValue(w, r, deviceInfo)
 }
 
-func (s *WebService) handleSetDeviceInfo(w http.ResponseWriter, r *http.Request) {
+func (s *WebService) handleAPISetDeviceInfo(w http.ResponseWriter, r *http.Request) {
 	device := s.parseDevice(w, r)
 
 	if device == nil {
@@ -173,24 +267,39 @@ func (s *WebService) handleSetDeviceInfo(w http.ResponseWriter, r *http.Request)
 	s.handleValue(w, r, deviceInfo)
 }
 
-func (s *WebService) handleGetAllLinkDB(w http.ResponseWriter, r *http.Request) {
-	records, err := s.PowerLineModem.GetAllLinkDB(r.Context())
+func (s *WebService) parseID(w http.ResponseWriter, r *http.Request) *ID {
+	vars := mux.Vars(r)
 
-	if err != nil {
-		s.handleError(w, r, err)
-		return
+	idStr := vars["id"]
+
+	if idStr == "" {
+		err := fmt.Errorf("invalid empty device id")
+
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, "%s", err)
+
+		return nil
 	}
 
-	s.handleValue(w, r, records)
+	id, err := ParseID(idStr)
+
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, "%s", err)
+
+		return nil
+	}
+
+	return &id
 }
 
 func (s *WebService) parseDevice(w http.ResponseWriter, r *http.Request) *ConfigurationDevice {
 	vars := mux.Vars(r)
 
-	id := vars["id"]
+	id := vars["device"]
 
 	if id == "" {
-		err := fmt.Errorf("invalid empty device id")
+		err := fmt.Errorf("invalid empty device identifier")
 
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "%s", err)
