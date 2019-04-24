@@ -29,7 +29,7 @@ var DefaultPowerLineModem = func() PowerLineModem {
 }()
 
 // NewPowerLineModem instantiates a new PowerLine Modem.
-func NewPowerLineModem(device string) (*SerialPowerLineModem, error) {
+func NewPowerLineModem(device string) (PowerLineModem, error) {
 	url, err := url.Parse(device)
 
 	if err != nil {
@@ -37,6 +37,8 @@ func NewPowerLineModem(device string) (*SerialPowerLineModem, error) {
 	}
 
 	switch url.Scheme {
+	case "http", "https":
+		return NewHTTPPowerLineModem(url.String())
 	case "tcp":
 		return NewRemotePowerLineModem(url.Host)
 	default:
