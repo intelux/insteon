@@ -112,7 +112,7 @@ func (s *WebService) Synchronize(ctx context.Context, failOnMissingOptimization 
 		}
 
 		if len(failures) > 0 {
-			return fmt.Errorf("optimization failure:\n- %s\n", strings.Join(failures, "\n- "))
+			return fmt.Errorf("optimization failure:\n- %s", strings.Join(failures, "\n- "))
 		}
 	}
 
