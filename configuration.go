@@ -15,39 +15,33 @@ type Configuration struct {
 	Devices []ConfigurationDevice `yaml:"devices"`
 }
 
-// LookupDevice finds a device from its alias or device ID.
-//
-// Devices that are not referenced in the configuration can still be looked-up
-// by their device ID.
-func (c *Configuration) LookupDevice(s string) (*ConfigurationDevice, error) {
-	if s != "" {
-		for _, device := range c.Devices {
-			if device.Alias == s {
-				return &device, nil
-			}
+// ErrNoSuchDevice is returned whenever a lookup on a given device alias
+// failed.
+type ErrNoSuchDevice struct {
+	Alias string
+}
+
+// Error returns the error string.
+func (e ErrNoSuchDevice) Error() string { return fmt.Sprintf("no such device: %s", e.Alias) }
+
+// LookupDevice finds a device from its alias.
+func (c *Configuration) LookupDevice(alias string) (*ConfigurationDevice, error) {
+	for _, device := range c.Devices {
+		if device.Alias == alias {
+			return &device, nil
 		}
 	}
 
-	// As a fallback, return a fake device created on the spot.
-	id, err := ParseID(s)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &ConfigurationDevice{
-		ID:   id,
-		Name: id.String(),
-	}, nil
+	return nil, ErrNoSuchDevice{alias}
 }
 
 // ConfigurationDevice represents a device in the configuration.
 type ConfigurationDevice struct {
-	ID             ID     `yaml:"id"`
-	Name           string `yaml:"name"`
-	Alias          string `yaml:"alias,omitempty"`
-	Group          string `yaml:"group,omitempty"`
-	SlaveDeviceIDs []ID   `yaml:"slave_devices"`
+	ID              ID     `yaml:"id"`
+	Name            string `yaml:"name"`
+	Alias           string `yaml:"alias,omitempty"`
+	Group           string `yaml:"group,omitempty"`
+	MirrorDeviceIDs []ID   `yaml:"mirror_devices"`
 }
 
 // UnmarshalYAML -
@@ -62,6 +56,10 @@ func (d *ConfigurationDevice) UnmarshalYAML(unmarshal func(interface{}) error) e
 
 	if x.Name == "" {
 		return fmt.Errorf("a name must be defined")
+	}
+
+	if x.Alias == "" {
+		return fmt.Errorf("an alias must be defined")
 	}
 
 	*d = *(*ConfigurationDevice)(x)

@@ -33,7 +33,7 @@ var setOnLevelCmd = &cobra.Command{
 			return err
 		}
 
-		for _, id := range device.SlaveDeviceIDs {
+		for _, id := range device.MirrorDeviceIDs {
 			insteon.DefaultPowerLineModem.SetDeviceInfo(rootCtx, id, deviceInfo)
 		}
 

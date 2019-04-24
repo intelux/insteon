@@ -100,13 +100,13 @@ func (s *WebService) Synchronize(ctx context.Context, failOnMissingOptimization 
 				failures = append(failures, fmt.Sprintf("device %s (%s) is not a controller", device.Name, device.ID))
 			}
 
-			for _, slaveDeviceID := range device.SlaveDeviceIDs {
-				if !s.responders[slaveDeviceID] {
-					failures = append(failures, fmt.Sprintf("slave device %s of %s (%s) is not a responder", slaveDeviceID, device.Name, device.ID))
+			for _, mirrorDeviceID := range device.MirrorDeviceIDs {
+				if !s.responders[mirrorDeviceID] {
+					failures = append(failures, fmt.Sprintf("mirror device %s of %s (%s) is not a responder", mirrorDeviceID, device.Name, device.ID))
 				}
 
-				if !s.controllers[slaveDeviceID] {
-					failures = append(failures, fmt.Sprintf("slave device %s of %s (%s) is not a controller", slaveDeviceID, device.Name, device.ID))
+				if !s.controllers[mirrorDeviceID] {
+					failures = append(failures, fmt.Sprintf("mirror device %s of %s (%s) is not a controller", mirrorDeviceID, device.Name, device.ID))
 				}
 			}
 		}
@@ -161,8 +161,8 @@ func (s *WebService) init() {
 		for _, device := range s.Configuration.Devices {
 			s.deviceToMasterDevice[device.ID] = device.ID
 
-			for _, slaveDeviceID := range device.SlaveDeviceIDs {
-				s.deviceToMasterDevice[slaveDeviceID] = device.ID
+			for _, mirrorDeviceID := range device.MirrorDeviceIDs {
+				s.deviceToMasterDevice[mirrorDeviceID] = device.ID
 			}
 		}
 	})
@@ -365,7 +365,7 @@ func (s *WebService) handleAPISetDeviceState(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	for _, id := range device.SlaveDeviceIDs {
+	for _, id := range device.MirrorDeviceIDs {
 		if s.responders == nil || s.responders[id] {
 			s.PowerLineModem.SetDeviceState(r.Context(), id, *state)
 		}
@@ -418,7 +418,7 @@ func (s *WebService) handleAPISetDeviceInfo(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	for _, id := range device.SlaveDeviceIDs {
+	for _, id := range device.MirrorDeviceIDs {
 		s.PowerLineModem.SetDeviceInfo(r.Context(), id, *deviceInfo)
 	}
 
