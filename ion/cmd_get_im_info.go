@@ -1,8 +1,9 @@
 package main
 
 import (
-	"encoding/json"
+	"fmt"
 	"os"
+	"text/tabwriter"
 
 	"github.com/intelux/insteon"
 	"github.com/spf13/cobra"
@@ -19,7 +20,12 @@ var getIMInfoCmd = &cobra.Command{
 			return err
 		}
 
-		return json.NewEncoder(os.Stdout).Encode(imInfo)
+		w := &tabwriter.Writer{}
+		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
+		fmt.Fprintf(w, "ID\tCategory\tFirmware version\n")
+		fmt.Fprintf(w, "%s\t%s\t%d\n", imInfo.ID, imInfo.Category, imInfo.FirmwareVersion)
+
+		return w.Flush()
 	},
 }
 

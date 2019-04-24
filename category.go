@@ -44,14 +44,14 @@ type SubCategory uint8
 
 // Category represents a category.
 type Category struct {
-	mainCategory MainCategory
-	subCategory  SubCategory
+	MainCategory `json:"main"`
+	SubCategory  `json:"sub"`
 }
 
 // UnmarshalBinary -
 func (c *Category) UnmarshalBinary(b []byte) error {
-	c.mainCategory = MainCategory(b[0])
-	c.subCategory = SubCategory(b[1])
+	c.MainCategory = MainCategory(b[0])
+	c.SubCategory = SubCategory(b[1])
 
 	return nil
 }
@@ -59,13 +59,13 @@ func (c *Category) UnmarshalBinary(b []byte) error {
 // MarshalBinary -
 func (c Category) MarshalBinary() ([]byte, error) {
 	return []byte{
-		byte(c.mainCategory),
-		byte(c.subCategory),
+		byte(c.MainCategory),
+		byte(c.SubCategory),
 	}, nil
 }
 
 func (c Category) String() string {
-	switch c.mainCategory {
+	switch c.MainCategory {
 	case generalizedControllers:
 		return "Generalized Controllers"
 	case dimmableLightingControl:
@@ -73,7 +73,7 @@ func (c Category) String() string {
 	case switchedLightingControl:
 		return "Switched Lighting Control"
 	case networkBridges:
-		switch c.subCategory {
+		switch c.SubCategory {
 		case powerlincSerial:
 			return "PowerLinc Serial [2414S]"
 		case powerlincUsb:
@@ -134,9 +134,4 @@ func (c Category) String() string {
 	}
 
 	return "Unknown category"
-}
-
-// MarshalText marshals a category as text.
-func (c Category) MarshalText() ([]byte, error) {
-	return []byte(c.String()), nil
 }
