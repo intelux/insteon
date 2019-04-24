@@ -88,6 +88,29 @@ func (m *HTTPPowerLineModem) Beep(ctx context.Context, identity ID) error {
 	return m.do(ctx, http.MethodPost, url, nil, nil)
 }
 
+// Monitor the Insteon network for changes for as long as the specified context remains valid.
+//
+// All events are pushed to the specified events channel.
+func (m *HTTPPowerLineModem) Monitor(ctx context.Context, events chan<- DeviceEvent) error {
+	event := DeviceEvent{}
+
+	for {
+		if err := m.do(ctx, http.MethodGet, "/plm/device/next-event", nil, &event); err == nil {
+			select {
+			case events <- event:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		} else {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+		}
+	}
+}
+
 func (m *HTTPPowerLineModem) init() {
 	m.once.Do(func() {
 		if m.URL == nil {

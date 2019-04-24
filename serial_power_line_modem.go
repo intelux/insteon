@@ -21,11 +21,12 @@ type SerialPowerLineModem struct {
 	// Can be a local serial port or a remote one (TCP).
 	Device io.ReadWriteCloser
 
-	once            sync.Once
-	ctx             context.Context
-	cancel          func()
-	routines        chan func()
-	incomingPackets chan *packet
+	once     sync.Once
+	ctx      context.Context
+	cancel   func()
+	routines chan func()
+	lock     sync.Mutex
+	inboxes  []*inbox
 }
 
 // NewLocalPowerLineModem instantiates a new local PowerLine Modem.
@@ -330,11 +331,52 @@ func (m *SerialPowerLineModem) Beep(ctx context.Context, identity ID) (err error
 	return
 }
 
+// Monitor the Insteon network for changes for as long as the specified context remains valid.
+//
+// All events are pushed to the specified events channel.
+func (m *SerialPowerLineModem) Monitor(ctx context.Context, events chan<- DeviceEvent) error {
+	m.init()
+
+	ctx, cancel := m.withInbox(ctx)
+	defer cancel()
+
+	for {
+		if msg, err := m.readMessage(ctx, cmdStandardMessageReceived); err == nil {
+			if msg.Flags&MessageFlagBroadcast == 0 {
+				continue
+			}
+
+			state := &LightState{}
+
+			if err := state.UnmarshalBinary(msg.CommandBytes[:]); err != nil {
+				continue
+			}
+
+			event := DeviceEvent{
+				Identity: msg.Source,
+				OnOff:    state.OnOff,
+				Change:   state.Change,
+			}
+
+			select {
+			case events <- event:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		} else {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+		}
+	}
+}
+
 func (m *SerialPowerLineModem) init() {
 	m.once.Do(func() {
 		m.ctx, m.cancel = context.WithCancel(context.Background())
 		m.routines = make(chan func())
-		m.incomingPackets = make(chan *packet)
 
 		go m.readLoop(m.ctx)
 
@@ -361,6 +403,9 @@ func (m *SerialPowerLineModem) execute(ctx context.Context, fn func(context.Cont
 	// Wait until we can push the routine.
 	select {
 	case m.routines <- func() {
+		ctx, cancel := m.withInbox(ctx)
+		defer cancel()
+
 		ch <- fn(ctx)
 	}:
 		select {
@@ -384,10 +429,17 @@ func (m *SerialPowerLineModem) readLoop(ctx context.Context) {
 			return
 		}
 
-		select {
-		case m.incomingPackets <- p:
-		case <-ctx.Done():
-			return
+		for _, ibx := range m.getInboxes() {
+			select {
+			case ibx.C <- p:
+				// Successful push, move on.
+			case <-ibx.Done():
+				// The inbox was closed while waiting for it to be ready to
+				// receive. We can ignore this push an move on.
+			case <-ctx.Done():
+				// The PLM was closed. That's it.
+				return
+			}
 		}
 	}
 }
@@ -401,10 +453,70 @@ const (
 	messageNak byte = 0x15
 )
 
+func (m *SerialPowerLineModem) getInboxes() []*inbox {
+	m.lock.Lock()
+
+	inboxes := make([]*inbox, len(m.inboxes))
+	copy(inboxes, m.inboxes)
+
+	m.lock.Unlock()
+
+	return inboxes
+}
+
+type contextKey int
+
+const (
+	ctxInbox contextKey = iota
+)
+
+func (m *SerialPowerLineModem) withInbox(ctx context.Context) (context.Context, func()) {
+	ctx, cancel := context.WithCancel(ctx)
+	ibx := m.acquireInbox(ctx)
+
+	return context.WithValue(ctx, ctxInbox, ibx), func() {
+		m.releaseInbox(ibx)
+		cancel()
+	}
+}
+
+func getInbox(ctx context.Context) *inbox {
+	result, _ := ctx.Value(ctxInbox).(*inbox)
+
+	return result
+}
+
+func (m *SerialPowerLineModem) acquireInbox(ctx context.Context) *inbox {
+	ibx := newInbox(ctx)
+
+	m.lock.Lock()
+	m.inboxes = append(m.inboxes, ibx)
+	m.lock.Unlock()
+
+	return ibx
+}
+
+func (m *SerialPowerLineModem) releaseInbox(ibx *inbox) {
+	m.lock.Lock()
+
+	for i, inbox := range m.inboxes {
+		if ibx == inbox {
+			m.inboxes = append(m.inboxes[:i], m.inboxes[i+1:]...)
+			break
+		}
+	}
+
+	m.lock.Unlock()
+
+	ibx.close()
+}
+
 func (m *SerialPowerLineModem) readPacket(ctx context.Context, commandCode CommandCode) (*packet, error) {
+	inbox := getInbox(ctx)
+
 	for {
 		select {
-		case packet := <-m.incomingPackets:
+		case packet := <-inbox.C:
 			if packet.CommandCode == commandCode {
 				return packet, nil
 			}

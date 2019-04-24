@@ -1,6 +1,7 @@
 package insteon
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"mime"
@@ -15,8 +16,18 @@ type WebService struct {
 	PowerLineModem PowerLineModem
 	Configuration  *Configuration
 
-	once    sync.Once
-	handler http.Handler
+	// DisablePowerLineModem is a boolean value that, if set, disables
+	// exposition of the PowerLineModem routes.
+	DisablePowerLineModem bool
+
+	// DisableAPI is a boolean value that, if set, disables exposition of the
+	// API routes.
+	DisableAPI bool
+
+	once         sync.Once
+	lock         sync.Mutex
+	handler      http.Handler
+	deviceStates map[ID]*LightState
 }
 
 // NewWebService instanciates a new web service.
@@ -37,6 +48,25 @@ func (s *WebService) Handler() http.Handler {
 	return s.handler
 }
 
+// Run the web-service for as long as the specified context remains valid.
+func (s *WebService) Run(ctx context.Context) {
+	s.init()
+
+	events := make(chan DeviceEvent, 10)
+	defer close(events)
+
+	go func() {
+		for event := range events {
+			// If an event occurs for a device, remove it's cached state.
+			s.lock.Lock()
+			delete(s.deviceStates, event.Identity)
+			s.lock.Unlock()
+		}
+	}()
+
+	s.PowerLineModem.Monitor(ctx, events)
+}
+
 func (s *WebService) init() {
 	s.once.Do(func() {
 		if s.PowerLineModem == nil {
@@ -48,6 +78,7 @@ func (s *WebService) init() {
 		}
 
 		s.handler = s.makeHandler()
+		s.deviceStates = map[ID]*LightState{}
 	})
 }
 
@@ -55,19 +86,23 @@ func (s *WebService) makeHandler() http.Handler {
 	router := mux.NewRouter()
 
 	// PLM-specific routes.
-	router.Path("/plm/im-info").Methods(http.MethodGet).HandlerFunc(s.handleGetIMInfo)
-	router.Path("/plm/all-link-db").Methods(http.MethodGet).HandlerFunc(s.handleGetAllLinkDB)
-	router.Path("/plm/device/{id}/state").Methods(http.MethodGet).HandlerFunc(s.handleGetDeviceState)
-	router.Path("/plm/device/{id}/state").Methods(http.MethodPut).HandlerFunc(s.handleSetDeviceState)
-	router.Path("/plm/device/{id}/info").Methods(http.MethodGet).HandlerFunc(s.handleGetDeviceInfo)
-	router.Path("/plm/device/{id}/info").Methods(http.MethodPut).HandlerFunc(s.handleSetDeviceInfo)
-	router.Path("/plm/device/{id}/beep").Methods(http.MethodPost).HandlerFunc(s.handleBeep)
+	if !s.DisablePowerLineModem {
+		router.Path("/plm/im-info").Methods(http.MethodGet).HandlerFunc(s.handleGetIMInfo)
+		router.Path("/plm/all-link-db").Methods(http.MethodGet).HandlerFunc(s.handleGetAllLinkDB)
+		router.Path("/plm/device/{id}/state").Methods(http.MethodGet).HandlerFunc(s.handleGetDeviceState)
+		router.Path("/plm/device/{id}/state").Methods(http.MethodPut).HandlerFunc(s.handleSetDeviceState)
+		router.Path("/plm/device/{id}/info").Methods(http.MethodGet).HandlerFunc(s.handleGetDeviceInfo)
+		router.Path("/plm/device/{id}/info").Methods(http.MethodPut).HandlerFunc(s.handleSetDeviceInfo)
+		router.Path("/plm/device/{id}/beep").Methods(http.MethodPost).HandlerFunc(s.handleBeep)
+	}
 
 	// API routes.
-	router.Path("/api/device/{device}/state").Methods(http.MethodGet).HandlerFunc(s.handleAPIGetDeviceState)
-	router.Path("/api/device/{device}/state").Methods(http.MethodPut).HandlerFunc(s.handleAPISetDeviceState)
-	router.Path("/api/device/{device}/info").Methods(http.MethodGet).HandlerFunc(s.handleAPIGetDeviceInfo)
-	router.Path("/api/device/{device}/info").Methods(http.MethodPut).HandlerFunc(s.handleAPISetDeviceInfo)
+	if !s.DisableAPI {
+		router.Path("/api/device/{device}/state").Methods(http.MethodGet).HandlerFunc(s.handleAPIGetDeviceState)
+		router.Path("/api/device/{device}/state").Methods(http.MethodPut).HandlerFunc(s.handleAPISetDeviceState)
+		router.Path("/api/device/{device}/info").Methods(http.MethodGet).HandlerFunc(s.handleAPIGetDeviceInfo)
+		router.Path("/api/device/{device}/info").Methods(http.MethodPut).HandlerFunc(s.handleAPISetDeviceInfo)
+	}
 
 	return router
 }
@@ -190,11 +225,22 @@ func (s *WebService) handleAPIGetDeviceState(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	state, err := s.PowerLineModem.GetDeviceState(r.Context(), device.ID)
+	s.lock.Lock()
+	state := s.deviceStates[device.ID]
+	s.lock.Unlock()
 
-	if err != nil {
-		s.handleError(w, r, err)
-		return
+	if state == nil {
+		var err error
+		state, err = s.PowerLineModem.GetDeviceState(r.Context(), device.ID)
+
+		if err != nil {
+			s.handleError(w, r, err)
+			return
+		}
+
+		s.lock.Lock()
+		s.deviceStates[device.ID] = state
+		s.lock.Unlock()
 	}
 
 	s.handleValue(w, r, state)
@@ -221,6 +267,10 @@ func (s *WebService) handleAPISetDeviceState(w http.ResponseWriter, r *http.Requ
 	for _, id := range device.SlaveDeviceIDs {
 		s.PowerLineModem.SetDeviceState(r.Context(), id, *state)
 	}
+
+	s.lock.Lock()
+	s.deviceStates[device.ID] = state
+	s.lock.Unlock()
 
 	s.handleValue(w, r, state)
 }

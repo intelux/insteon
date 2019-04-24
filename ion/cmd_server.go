@@ -40,6 +40,8 @@ var serverCmd = &cobra.Command{
 
 		fmt.Fprintf(os.Stderr, "Started HTTP web-service on %s.\n", serverCmdEndpoint)
 
+		go webService.Run(rootCtx)
+
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
 			return err
 		}

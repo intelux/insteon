@@ -15,6 +15,7 @@ type PowerLineModem interface {
 	GetDeviceInfo(ctx context.Context, identity ID) (deviceInfo *DeviceInfo, err error)
 	SetDeviceInfo(ctx context.Context, identity ID, deviceInfo DeviceInfo) error
 	Beep(ctx context.Context, identity ID) (err error)
+	Monitor(ctx context.Context, events chan<- DeviceEvent) error
 }
 
 // DefaultPowerLineModem is the default PowerLine Modem instance.
