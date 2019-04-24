@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"mime"
 	"net/http"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -24,10 +26,18 @@ type WebService struct {
 	// API routes.
 	DisableAPI bool
 
-	once         sync.Once
-	lock         sync.Mutex
-	handler      http.Handler
-	deviceStates map[ID]*LightState
+	// ForceRefreshPeriod is the period after which to consider a device state
+	// stale.
+	ForceRefreshPeriod time.Duration
+
+	once                   sync.Once
+	lock                   sync.Mutex
+	handler                http.Handler
+	controllers            map[ID]bool
+	responders             map[ID]bool
+	deviceToMasterDevice   map[ID]ID
+	deviceStates           map[ID]*LightState
+	deviceStatesTimestamps map[ID]time.Time
 }
 
 // NewWebService instanciates a new web service.
@@ -48,8 +58,69 @@ func (s *WebService) Handler() http.Handler {
 	return s.handler
 }
 
+// Synchronize the web-service with the Insteon network to optimize efficiency.
+//
+// Must be done before Run is called or the HTTP handler is served.
+func (s *WebService) Synchronize(ctx context.Context, failOnMissingOptimization bool) error {
+	s.init()
+
+	// Read the All-Link DB to make sure we only deal with devices that we can
+	// control/respond to.
+	records, err := s.PowerLineModem.GetAllLinkDB(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	s.controllers = map[ID]bool{}
+	s.responders = map[ID]bool{}
+
+	for _, record := range records {
+		// The device is not known, we skip it.
+		if _, ok := s.deviceToMasterDevice[record.ID]; !ok {
+			continue
+		}
+
+		if record.Mode() == ModeResponder {
+			s.responders[record.ID] = true
+		} else {
+			s.controllers[record.ID] = true
+		}
+	}
+
+	if failOnMissingOptimization {
+		var failures []string
+
+		for _, device := range s.Configuration.Devices {
+			if !s.responders[device.ID] {
+				failures = append(failures, fmt.Sprintf("device %s (%s) is not a responder", device.Name, device.ID))
+			}
+
+			if !s.controllers[device.ID] {
+				failures = append(failures, fmt.Sprintf("device %s (%s) is not a controller", device.Name, device.ID))
+			}
+
+			for _, slaveDeviceID := range device.SlaveDeviceIDs {
+				if !s.responders[slaveDeviceID] {
+					failures = append(failures, fmt.Sprintf("slave device %s of %s (%s) is not a responder", slaveDeviceID, device.Name, device.ID))
+				}
+
+				if !s.controllers[slaveDeviceID] {
+					failures = append(failures, fmt.Sprintf("slave device %s of %s (%s) is not a controller", slaveDeviceID, device.Name, device.ID))
+				}
+			}
+		}
+
+		if len(failures) > 0 {
+			return fmt.Errorf("optimization failure:\n- %s\n", strings.Join(failures, "\n- "))
+		}
+	}
+
+	return nil
+}
+
 // Run the web-service for as long as the specified context remains valid.
-func (s *WebService) Run(ctx context.Context) {
+func (s *WebService) Run(ctx context.Context) error {
 	s.init()
 
 	events := make(chan DeviceEvent, 10)
@@ -60,11 +131,12 @@ func (s *WebService) Run(ctx context.Context) {
 			// If an event occurs for a device, remove it's cached state.
 			s.lock.Lock()
 			delete(s.deviceStates, event.Identity)
+			delete(s.deviceStatesTimestamps, event.Identity)
 			s.lock.Unlock()
 		}
 	}()
 
-	s.PowerLineModem.Monitor(ctx, events)
+	return s.PowerLineModem.Monitor(ctx, events)
 }
 
 func (s *WebService) init() {
@@ -77,8 +149,22 @@ func (s *WebService) init() {
 			s.Configuration = &Configuration{}
 		}
 
+		if s.ForceRefreshPeriod == 0 {
+			s.ForceRefreshPeriod = 5 * time.Minute
+		}
+
 		s.handler = s.makeHandler()
+		s.deviceToMasterDevice = map[ID]ID{}
 		s.deviceStates = map[ID]*LightState{}
+		s.deviceStatesTimestamps = map[ID]time.Time{}
+
+		for _, device := range s.Configuration.Devices {
+			s.deviceToMasterDevice[device.ID] = device.ID
+
+			for _, slaveDeviceID := range device.SlaveDeviceIDs {
+				s.deviceToMasterDevice[slaveDeviceID] = device.ID
+			}
+		}
 	})
 }
 
@@ -227,9 +313,12 @@ func (s *WebService) handleAPIGetDeviceState(w http.ResponseWriter, r *http.Requ
 
 	s.lock.Lock()
 	state := s.deviceStates[device.ID]
+	timestamp := s.deviceStatesTimestamps[device.ID]
 	s.lock.Unlock()
 
-	if state == nil {
+	now := time.Now().UTC()
+
+	if state == nil || timestamp.Add(s.ForceRefreshPeriod).Before(now) {
 		var err error
 		state, err = s.PowerLineModem.GetDeviceState(r.Context(), device.ID)
 
@@ -238,9 +327,14 @@ func (s *WebService) handleAPIGetDeviceState(w http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		s.lock.Lock()
-		s.deviceStates[device.ID] = state
-		s.lock.Unlock()
+		// Only cache the state if the device is a controller, otherwise it
+		// won't ever be refreshed.
+		if s.controllers != nil && s.controllers[device.ID] {
+			s.lock.Lock()
+			s.deviceStates[device.ID] = state
+			s.deviceStatesTimestamps[device.ID] = time.Now().UTC()
+			s.lock.Unlock()
+		}
 	}
 
 	s.handleValue(w, r, state)
@@ -259,18 +353,32 @@ func (s *WebService) handleAPISetDeviceState(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// If the device is not a responder, don't bother sending a command to it.
+	if s.responders != nil && !s.responders[device.ID] {
+		err := fmt.Errorf("device %s (%s) is registered as a responder", device.Name, device.ID)
+		s.handleError(w, r, err)
+		return
+	}
+
 	if err := s.PowerLineModem.SetDeviceState(r.Context(), device.ID, *state); err != nil {
 		s.handleError(w, r, err)
 		return
 	}
 
 	for _, id := range device.SlaveDeviceIDs {
-		s.PowerLineModem.SetDeviceState(r.Context(), id, *state)
+		if s.responders == nil || s.responders[id] {
+			s.PowerLineModem.SetDeviceState(r.Context(), id, *state)
+		}
 	}
 
-	s.lock.Lock()
-	s.deviceStates[device.ID] = state
-	s.lock.Unlock()
+	// Only cache the state if the device is a controller, otherwise it
+	// won't ever be refreshed.
+	if s.controllers != nil && s.controllers[device.ID] {
+		s.lock.Lock()
+		s.deviceStates[device.ID] = state
+		s.deviceStatesTimestamps[device.ID] = time.Now().UTC()
+		s.lock.Unlock()
+	}
 
 	s.handleValue(w, r, state)
 }

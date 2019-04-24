@@ -13,6 +13,7 @@ import (
 
 var (
 	serverCmdEndpoint = ":7660"
+	serverCmdOptimize = false
 )
 
 var serverCmd = &cobra.Command{
@@ -21,6 +22,11 @@ var serverCmd = &cobra.Command{
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		webService := insteon.NewWebService(nil, rootConfig)
+
+		if err := webService.Synchronize(rootCtx, serverCmdOptimize); err != nil {
+			return err
+		}
+
 		server := &http.Server{
 			Addr:    serverCmdEndpoint,
 			Handler: webService.Handler(),
@@ -54,6 +60,7 @@ var serverCmd = &cobra.Command{
 
 func init() {
 	serverCmd.Flags().StringVarP(&serverCmdEndpoint, "endpoint", "e", serverCmdEndpoint, "The endpoint to listen on.")
+	serverCmd.Flags().BoolVarP(&serverCmdOptimize, "optimize", "o", serverCmdOptimize, "Force optimizations or fail.")
 
 	rootCmd.AddCommand(serverCmd)
 }
