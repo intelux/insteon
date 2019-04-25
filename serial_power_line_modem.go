@@ -98,6 +98,8 @@ func (m *SerialPowerLineModem) GetAllLinkDB(ctx context.Context) (records AllLin
 	m.init()
 
 	err = m.execute(ctx, func(ctx context.Context) error {
+		ctx = withWriteDelay(ctx, time.Millisecond*100)
+
 		p, err := m.rawRoundtrip(ctx, &packet{CommandCode: cmdGetFirstAllLinkRecord})
 
 		if err != nil {
@@ -406,6 +408,11 @@ func (m *SerialPowerLineModem) execute(ctx context.Context, fn func(context.Cont
 		ctx, cancel := m.withInbox(ctx)
 		defer cancel()
 
+		// Set a default write delay of 500ms.
+		//
+		// This can be overriden by specific calls for a longer/shorter delay.
+		ctx = withWriteDelay(ctx, time.Millisecond*500)
+
 		ch <- fn(ctx)
 	}:
 		select {
@@ -468,6 +475,7 @@ type contextKey int
 
 const (
 	ctxInbox contextKey = iota
+	ctxWriteDelay
 )
 
 func (m *SerialPowerLineModem) withInbox(ctx context.Context) (context.Context, func()) {
@@ -484,6 +492,18 @@ func getInbox(ctx context.Context) *inbox {
 	result, _ := ctx.Value(ctxInbox).(*inbox)
 
 	return result
+}
+
+func withWriteDelay(ctx context.Context, writeDelay time.Duration) context.Context {
+	return context.WithValue(ctx, ctxWriteDelay, writeDelay)
+}
+
+func getWriteDelay(ctx context.Context) time.Duration {
+	if result := ctx.Value(ctxWriteDelay); result != nil {
+		return result.(time.Duration)
+	}
+
+	return 0
 }
 
 func (m *SerialPowerLineModem) acquireInbox(ctx context.Context) *inbox {
@@ -540,10 +560,26 @@ func (m *SerialPowerLineModem) readPacketTo(ctx context.Context, commandCode Com
 	return p, nil
 }
 
-func (m *SerialPowerLineModem) writePacket(p *packet) error {
+func (m *SerialPowerLineModem) writePacket(ctx context.Context, p *packet) error {
+	// Make sure we wait enough since the last write.
+	now := time.Now().UTC()
+	delay := m.noWriteBefore.Sub(now)
+
+	select {
+	case <-time.After(delay):
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
 	w := newPacketWriter(m.Device)
 
-	return w.WritePacket(p)
+	err := w.WritePacket(p)
+
+	if writeDelay := getWriteDelay(ctx); writeDelay != 0 {
+		m.noWriteBefore = time.Now().UTC().Add(writeDelay)
+	}
+
+	return err
 }
 
 func (m *SerialPowerLineModem) messageRoundtrip(ctx context.Context, msg *Message) (*Message, error) {
@@ -559,6 +595,14 @@ func (m *SerialPowerLineModem) messageRoundtrip(ctx context.Context, msg *Messag
 	}
 
 	result := &Message{}
+
+	if msg.IsExtended() {
+		writeDelay := time.Second * time.Duration(26*msg.HopsLeft) / 60
+		ctx = withWriteDelay(ctx, writeDelay)
+	} else {
+		writeDelay := time.Second * time.Duration(12*msg.HopsLeft) / 60
+		ctx = withWriteDelay(ctx, writeDelay)
+	}
 
 	if err = m.roundtrip(ctx, p, result); err != nil {
 		return nil, err
