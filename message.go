@@ -2,6 +2,7 @@ package insteon
 
 import (
 	"fmt"
+	"strings"
 )
 
 // MessageFlags represents the message flags.
@@ -17,6 +18,25 @@ const (
 	// MessageFlagBroadcast indicates a broadcast message.
 	MessageFlagBroadcast MessageFlags = 0x80
 )
+
+func (f MessageFlags) String() string {
+	var result []string
+
+	if f&MessageFlagExtended > 0 {
+		result = append(result, "extended")
+	}
+	if f&MessageFlagAck > 0 {
+		result = append(result, "ack")
+	}
+	if f&MessageFlagAllLink > 0 {
+		result = append(result, "all-link")
+	}
+	if f&MessageFlagBroadcast > 0 {
+		result = append(result, "broadcast")
+	}
+
+	return strings.Join(result, ",")
+}
 
 // Message is sent through the PLM to communicate with other devices.
 type Message struct {
@@ -48,6 +68,11 @@ func newExtendedMessage(target ID, commandBytes [2]byte, userData [14]byte) *Mes
 		CommandBytes: commandBytes,
 		UserData:     userData,
 	}
+}
+
+// IsAck returns whether the message is an ack.
+func (m Message) IsAck() bool {
+	return m.Flags&MessageFlagAck != 0
 }
 
 // IsExtended returns whether the message is an extended message.
