@@ -21,12 +21,15 @@ type SerialPowerLineModem struct {
 	// Can be a local serial port or a remote one (TCP).
 	Device io.ReadWriteCloser
 
-	once     sync.Once
-	ctx      context.Context
-	cancel   func()
-	routines chan func()
-	lock     sync.Mutex
-	inboxes  []*inbox
+	ExecutionTimeout time.Duration
+
+	once          sync.Once
+	ctx           context.Context
+	cancel        func()
+	routines      chan func()
+	noWriteBefore time.Time
+	lock          sync.Mutex
+	inboxes       []*inbox
 }
 
 // NewLocalPowerLineModem instantiates a new local PowerLine Modem.
@@ -98,7 +101,7 @@ func (m *SerialPowerLineModem) GetAllLinkDB(ctx context.Context) (records AllLin
 	m.init()
 
 	err = m.execute(ctx, func(ctx context.Context) error {
-		ctx = withWriteDelay(ctx, time.Millisecond*100)
+		ctx = withWriteDelay(ctx, time.Millisecond*10)
 
 		p, err := m.rawRoundtrip(ctx, &packet{CommandCode: cmdGetFirstAllLinkRecord})
 
@@ -343,11 +346,7 @@ func (m *SerialPowerLineModem) Monitor(ctx context.Context, events chan<- Device
 	defer cancel()
 
 	for {
-		if msg, err := m.readMessage(ctx, cmdStandardMessageReceived); err == nil {
-			if msg.Flags&MessageFlagBroadcast == 0 {
-				continue
-			}
-
+		if msg, err := m.readMessage(ctx, cmdStandardMessageReceived, MessageFlagBroadcast); err == nil {
 			state := &LightState{}
 
 			if err := state.UnmarshalBinary(msg.CommandBytes[:]); err != nil {
@@ -377,6 +376,10 @@ func (m *SerialPowerLineModem) Monitor(ctx context.Context, events chan<- Device
 
 func (m *SerialPowerLineModem) init() {
 	m.once.Do(func() {
+		if m.ExecutionTimeout == 0 {
+			m.ExecutionTimeout = time.Second
+		}
+
 		m.ctx, m.cancel = context.WithCancel(context.Background())
 		m.routines = make(chan func())
 
@@ -408,12 +411,15 @@ func (m *SerialPowerLineModem) execute(ctx context.Context, fn func(context.Cont
 		ctx, cancel := m.withInbox(ctx)
 		defer cancel()
 
-		// Set a default write delay of 500ms.
+		// Set a default write delay of 10ms.
 		//
 		// This can be overriden by specific calls for a longer/shorter delay.
-		ctx = withWriteDelay(ctx, time.Millisecond*500)
+		ctx = withWriteDelay(ctx, time.Millisecond*10)
 
+		//
+		ctx, subCancel := context.WithTimeout(ctx, m.ExecutionTimeout)
 		ch <- fn(ctx)
+		subCancel()
 	}:
 		select {
 		case err := <-ch:
@@ -611,26 +617,30 @@ func (m *SerialPowerLineModem) messageRoundtrip(ctx context.Context, msg *Messag
 	return result, nil
 }
 
-func (m *SerialPowerLineModem) readMessage(ctx context.Context, commandCode CommandCode) (*Message, error) {
-	result := &Message{}
+func (m *SerialPowerLineModem) readMessage(ctx context.Context, commandCode CommandCode, flags MessageFlags) (*Message, error) {
+	for {
+		result := &Message{}
 
-	if _, err := m.readPacketTo(ctx, commandCode, result); err != nil {
-		return nil, err
+		if _, err := m.readPacketTo(ctx, commandCode, result); err != nil {
+			return nil, err
+		}
+
+		if (result.Flags & flags) == flags {
+			return result, nil
+		}
 	}
-
-	return result, nil
 }
 
 func (m *SerialPowerLineModem) readStandardMessage(ctx context.Context) (*Message, error) {
-	return m.readMessage(ctx, cmdStandardMessageReceived)
+	return m.readMessage(ctx, cmdStandardMessageReceived, MessageFlagAck)
 }
 
 func (m *SerialPowerLineModem) readExtendedMessage(ctx context.Context) (*Message, error) {
-	return m.readMessage(ctx, cmdExtendedMessageReceived)
+	return m.readMessage(ctx, cmdExtendedMessageReceived, MessageFlagAck)
 }
 
 func (m *SerialPowerLineModem) rawRoundtrip(ctx context.Context, p *packet) (*packet, error) {
-	if err := m.writePacket(p); err != nil {
+	if err := m.writePacket(ctx, p); err != nil {
 		return nil, err
 	}
 

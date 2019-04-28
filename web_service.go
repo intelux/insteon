@@ -311,14 +311,23 @@ func (s *WebService) handleAPIGetDeviceState(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	s.lock.Lock()
-	state := s.deviceStates[device.ID]
-	timestamp := s.deviceStatesTimestamps[device.ID]
-	s.lock.Unlock()
-
 	now := time.Now().UTC()
 
-	if state == nil || timestamp.Add(s.ForceRefreshPeriod).Before(now) {
+	s.lock.Lock()
+	state := s.deviceStates[device.ID]
+
+	if state != nil {
+		timestamp := s.deviceStatesTimestamps[device.ID]
+
+		if timestamp.Add(s.ForceRefreshPeriod).Before(now) {
+			delete(s.deviceStatesTimestamps, device.ID)
+			delete(s.deviceStates, device.ID)
+			state = nil
+		}
+	}
+	s.lock.Unlock()
+
+	if state == nil {
 		var err error
 		state, err = s.PowerLineModem.GetDeviceState(r.Context(), device.ID)
 
