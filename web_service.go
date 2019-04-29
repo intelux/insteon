@@ -128,10 +128,16 @@ func (s *WebService) Run(ctx context.Context) error {
 
 	go func() {
 		for event := range events {
+			id := event.Identity
+
+			if masterID, ok := s.deviceToMasterDevice[id]; ok {
+				id = masterID
+			}
+
 			// If an event occurs for a device, remove it's cached state.
 			s.lock.Lock()
-			delete(s.deviceStates, event.Identity)
-			delete(s.deviceStatesTimestamps, event.Identity)
+			delete(s.deviceStates, id)
+			delete(s.deviceStatesTimestamps, id)
 			s.lock.Unlock()
 		}
 	}()
@@ -163,6 +169,10 @@ func (s *WebService) init() {
 
 			for _, mirrorDeviceID := range device.MirrorDeviceIDs {
 				s.deviceToMasterDevice[mirrorDeviceID] = device.ID
+			}
+
+			for _, controllerID := range device.ControllerIDs {
+				s.deviceToMasterDevice[controllerID] = device.ID
 			}
 		}
 	})

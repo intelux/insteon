@@ -42,6 +42,7 @@ type ConfigurationDevice struct {
 	Alias           string `yaml:"alias,omitempty"`
 	Group           string `yaml:"group,omitempty"`
 	MirrorDeviceIDs []ID   `yaml:"mirror_devices"`
+	ControllerIDs   []ID   `yaml:"controllers"`
 }
 
 // UnmarshalYAML -
