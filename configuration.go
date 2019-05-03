@@ -37,12 +37,12 @@ func (c *Configuration) LookupDevice(alias string) (*ConfigurationDevice, error)
 
 // ConfigurationDevice represents a device in the configuration.
 type ConfigurationDevice struct {
-	ID              ID     `yaml:"id"`
-	Name            string `yaml:"name"`
-	Alias           string `yaml:"alias,omitempty"`
-	Group           string `yaml:"group,omitempty"`
-	MirrorDeviceIDs []ID   `yaml:"mirror_devices"`
-	ControllerIDs   []ID   `yaml:"controllers"`
+	ID              ID     `yaml:"id" json:"insteon_id"`
+	Name            string `yaml:"name" json:"description"`
+	Alias           string `yaml:"alias" json:"alias"`
+	Group           string `yaml:"group,omitempty" json:"-"`
+	MirrorDeviceIDs []ID   `yaml:"mirror_devices" json:"-"`
+	ControllerIDs   []ID   `yaml:"controllers" json:"-"`
 }
 
 // UnmarshalYAML -

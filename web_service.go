@@ -194,6 +194,7 @@ func (s *WebService) makeHandler() http.Handler {
 
 	// API routes.
 	if !s.DisableAPI {
+		router.Path("/api/devices").Methods(http.MethodGet).HandlerFunc(s.handleAPIGetDevices)
 		router.Path("/api/device/{device}/state").Methods(http.MethodGet).HandlerFunc(s.handleAPIGetDeviceState)
 		router.Path("/api/device/{device}/state").Methods(http.MethodPut).HandlerFunc(s.handleAPISetDeviceState)
 		router.Path("/api/device/{device}/info").Methods(http.MethodGet).HandlerFunc(s.handleAPIGetDeviceInfo)
@@ -312,6 +313,10 @@ func (s *WebService) handleGetAllLinkDB(w http.ResponseWriter, r *http.Request) 
 	}
 
 	s.handleValue(w, r, records)
+}
+
+func (s *WebService) handleAPIGetDevices(w http.ResponseWriter, r *http.Request) {
+	s.handleValue(w, r, s.Configuration.Devices)
 }
 
 func (s *WebService) handleAPIGetDeviceState(w http.ResponseWriter, r *http.Request) {
