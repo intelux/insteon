@@ -14,6 +14,9 @@ const (
 	// EnvPowerLineModemDebug is the environment variable that contains the
 	// system PowerLine Modem debug setting.
 	EnvPowerLineModemDebug = "INSTEON_POWERLINE_MODEM_DEBUG"
+	// EnvWebServiceDebug is the environment variable that contains the
+	// system web-service debug setting.
+	EnvWebServiceDebug = "INSTEON_WEB_SERVICE_DEBUG"
 )
 
 const (
@@ -31,6 +34,9 @@ var (
 
 	// PowerLineModemDebug is the current PowerLine Modem debug setting.
 	PowerLineModemDebug = getBoolEnvOrDefault(EnvPowerLineModemDebug, false)
+
+	// WebServiceDebug is the current web-service debug setting.
+	WebServiceDebug = getBoolEnvOrDefault(EnvWebServiceDebug, false)
 )
 
 func getEnvOrDefault(env string, def string) string {

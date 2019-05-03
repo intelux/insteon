@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"mime"
 	"net/http"
+	"net/http/httputil"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -201,7 +203,17 @@ func (s *WebService) makeHandler() http.Handler {
 		router.Path("/api/device/{device}/info").Methods(http.MethodPut).HandlerFunc(s.handleAPISetDeviceInfo)
 	}
 
-	return router
+	if !WebServiceDebug {
+		return router
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if data, err := httputil.DumpRequest(req, false); err == nil {
+			fmt.Fprintf(os.Stderr, "%s", string(data))
+		}
+
+		router.ServeHTTP(w, req)
+	})
 }
 
 func (s *WebService) handleGetIMInfo(w http.ResponseWriter, r *http.Request) {
