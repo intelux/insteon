@@ -13,16 +13,35 @@ import (
 // Configuration represents a configuration.
 type Configuration struct {
 	Devices []ConfigurationDevice `yaml:"devices"`
+	Hubitat HubitatConfiguration  `yaml:"hubitat"`
 }
 
 // ErrNoSuchDevice is returned whenever a lookup on a given device alias
 // failed.
 type ErrNoSuchDevice struct {
+	ID    ID
 	Alias string
 }
 
 // Error returns the error string.
-func (e ErrNoSuchDevice) Error() string { return fmt.Sprintf("no such device: %s", e.Alias) }
+func (e ErrNoSuchDevice) Error() string {
+	if e.Alias != "" {
+		return fmt.Sprintf("no such device with alias: %s", e.Alias)
+	}
+
+	return fmt.Sprintf("no such device with id: %s", e.ID)
+}
+
+// GetDevice finds a device from its id.
+func (c *Configuration) GetDevice(id ID) (*ConfigurationDevice, error) {
+	for _, device := range c.Devices {
+		if device.ID == id {
+			return &device, nil
+		}
+	}
+
+	return nil, ErrNoSuchDevice{ID: id}
+}
 
 // LookupDevice finds a device from its alias.
 func (c *Configuration) LookupDevice(alias string) (*ConfigurationDevice, error) {
@@ -32,7 +51,7 @@ func (c *Configuration) LookupDevice(alias string) (*ConfigurationDevice, error)
 		}
 	}
 
-	return nil, ErrNoSuchDevice{alias}
+	return nil, ErrNoSuchDevice{Alias: alias}
 }
 
 // ConfigurationDevice represents a device in the configuration.

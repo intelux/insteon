@@ -1,6 +1,7 @@
 package insteon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -141,6 +142,36 @@ func (s *WebService) Run(ctx context.Context) error {
 			delete(s.deviceStates, id)
 			delete(s.deviceStatesTimestamps, id)
 			s.lock.Unlock()
+
+			if s.Configuration.Hubitat.HubURL != "" {
+				device, err := s.Configuration.GetDevice(id)
+
+				if err == nil {
+					go func(device *ConfigurationDevice) {
+						ctx, cancel := context.WithTimeout(ctx, time.Second*5)
+						defer cancel()
+
+						state, err := s.getDeviceState(ctx, device.ID)
+
+						if err != nil {
+							return
+						}
+
+						body := &bytes.Buffer{}
+						json.NewEncoder(body).Encode(HubitatEvent{
+							Alias: device.Alias,
+							State: *state,
+						})
+
+						req, err := http.NewRequest(http.MethodPut, fmt.Sprintf("%s/event", s.Configuration.Hubitat.HubURL), body)
+						req = req.WithContext(ctx)
+
+						http.DefaultClient.Do(req)
+
+						fmt.Fprintf(os.Stdout, "Sending Hubitat event for device %s.\n", device.Alias)
+					}(device)
+				}
+			}
 		}
 	}()
 
@@ -331,24 +362,18 @@ func (s *WebService) handleAPIGetDevices(w http.ResponseWriter, r *http.Request)
 	s.handleValue(w, r, s.Configuration.Devices)
 }
 
-func (s *WebService) handleAPIGetDeviceState(w http.ResponseWriter, r *http.Request) {
-	device := s.parseDevice(w, r)
-
-	if device == nil {
-		return
-	}
-
+func (s *WebService) getDeviceState(ctx context.Context, id ID) (*LightState, error) {
 	now := time.Now().UTC()
 
 	s.lock.Lock()
-	state := s.deviceStates[device.ID]
+	state := s.deviceStates[id]
 
 	if state != nil {
-		timestamp := s.deviceStatesTimestamps[device.ID]
+		timestamp := s.deviceStatesTimestamps[id]
 
 		if timestamp.Add(s.ForceRefreshPeriod).Before(now) {
-			delete(s.deviceStatesTimestamps, device.ID)
-			delete(s.deviceStates, device.ID)
+			delete(s.deviceStatesTimestamps, id)
+			delete(s.deviceStates, id)
 			state = nil
 		}
 	}
@@ -356,21 +381,37 @@ func (s *WebService) handleAPIGetDeviceState(w http.ResponseWriter, r *http.Requ
 
 	if state == nil {
 		var err error
-		state, err = s.PowerLineModem.GetDeviceState(r.Context(), device.ID)
+		state, err = s.PowerLineModem.GetDeviceState(ctx, id)
 
 		if err != nil {
-			s.handleError(w, r, err)
-			return
+			return nil, err
 		}
 
 		// Only cache the state if the device is a controller, otherwise it
 		// won't ever be refreshed.
-		if s.controllers != nil && s.controllers[device.ID] {
+		if s.controllers != nil && s.controllers[id] {
 			s.lock.Lock()
-			s.deviceStates[device.ID] = state
-			s.deviceStatesTimestamps[device.ID] = time.Now().UTC()
+			s.deviceStates[id] = state
+			s.deviceStatesTimestamps[id] = time.Now().UTC()
 			s.lock.Unlock()
 		}
+	}
+
+	return state, nil
+}
+
+func (s *WebService) handleAPIGetDeviceState(w http.ResponseWriter, r *http.Request) {
+	device := s.parseDevice(w, r)
+
+	if device == nil {
+		return
+	}
+
+	state, err := s.getDeviceState(r.Context(), device.ID)
+
+	if err != nil {
+		s.handleError(w, r, err)
+		return
 	}
 
 	s.handleValue(w, r, state)
